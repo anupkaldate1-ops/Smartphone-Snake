@@ -403,10 +403,15 @@
             headX += xVelocity;
             headY += yVelocity;
 
-            if (headX < 0) headX = tileCount - 1; 
-            if (headX >= tileCount) headX = 0;
-            if (headY < 0) headY = tileCount - 1;
-            if (headY >= tileCount) headY = 0;
+            // --- NEW: Solid Wall Boundaries ---
+            // If the snake hits the edge of the canvas, trigger a Game Over
+            if (headX < 0 || headX >= tileCount || headY < 0 || headY >= tileCount) {
+                // Check if moving to prevent instant death upon loading
+                if (isGameRunning && (xVelocity !== 0 || yVelocity !== 0)) {
+                    handleGameOver();
+                    return;
+                }
+            }
 
             for (let i = 0; i < snakeParts.length; i++) {
                 if (snakeParts[i].x === headX && snakeParts[i].y === headY && isGameRunning && (xVelocity !== 0 || yVelocity !== 0)) {
@@ -450,6 +455,15 @@
             ctx.fillStyle = currentTheme.bg; 
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+            // --- NEW: Cool Glowing Edge Boundary ---
+            ctx.lineWidth = 8;
+            ctx.strokeStyle = currentTheme.snakeHead; 
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = currentTheme.snakeHead;
+            ctx.strokeRect(0, 0, canvas.width, canvas.height);
+            ctx.shadowBlur = 0; // Reset shadow
+
+            // Grid Lines
             ctx.strokeStyle = currentTheme.grid; 
             ctx.lineWidth = 0.5;
             for(let i = 0; i < tileCount; i++) {
@@ -512,7 +526,10 @@
 
         // --- Game Flow & Login Trigger ---
         function startGame() {
-            headX = 10; headY = 10; snakeParts = [{x: 10, y: 10}]; tailLength = 2;
+            headX = Math.floor(tileCount / 2); // Start in center
+            headY = Math.floor(tileCount / 2);
+            snakeParts = [{x: headX, y: headY}]; 
+            tailLength = 2;
             appleX = 15; appleY = 10; xVelocity = 0; yVelocity = 0; inputQueue = ['right'];
             score = 0; document.getElementById('scoreDisplay').innerText = score;
             speed = baseSpeed; isGameOver = false;
