@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#030712">
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <title>Modern Snake</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            touch-action: none; 
+            overscroll-behavior: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        #game-container {
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.2);
+            transition: box-shadow 0.3s ease;
+        }
+
+        .dpad-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(31, 41, 55, 0.8);
+            border: 2px solid rgba(55, 65, 81, 0.8);
+            border-radius: 1rem;
+            color: white;
+            transition: all 0.1s;
+            touch-action: manipulation;
+        }
+        
+        .dpad-btn:active {
+            background-color: rgba(34, 197, 94, 0.5);
+            border-color: rgba(34, 197, 94, 0.8);
+            transform: scale(0.95);
+        }
+
+        /* Custom Scrollbar for overlay */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.5); border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-gray-950 text-white h-[100dvh] w-screen overflow-hidden flex flex-col font-sans selection:bg-transparent">
+
+    <!-- Header / Scoreboard -->
+    <header class="w-full flex justify-between items-center p-4 md:p-6 h-[10%] min-h-[60px]">
+        <div class="flex flex-col">
+            <span class="text-gray-400 text-xs md:text-sm font-bold uppercase tracking-wider">Score</span>
+            <span id="scoreDisplay" class="text-3xl md:text-4xl font-black text-green-400 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]">0</span>
+        </div>
+        
+        <div class="flex flex-col items-end">
+            <span class="text-gray-400 text-xs md:text-sm font-bold uppercase tracking-wider">Best Session</span>
+            <span id="highScoreDisplay" class="text-2xl md:text-3xl font-bold text-gray-200">0</span>
+        </div>
+    </header>
+
+    <!-- Game Canvas Area -->
+    <main class="w-full flex-grow flex items-center justify-center relative p-2 md:p-4 h-[55%]">
+        <div id="game-container" class="relative bg-gray-900 rounded-xl overflow-hidden border border-gray-800">
+            <canvas id="gameCanvas"></canvas>
+            
+            <!-- Start/Game Over Overlay -->
+            <div id="overlay" class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm flex flex-col items-center justify-start z-10 w-full h-full overflow-y-auto py-6">
+                <div class="flex flex-col items-center justify-center w-full px-4 max-w-sm mx-auto">
+                    
+                    <h2 id="overlay-title" class="text-3xl md:text-4xl font-black mb-1 text-white tracking-widest text-center mt-4">SNAKE</h2>
+                    <p id="overlay-subtitle" class="text-gray-400 mb-2 text-center text-xs md:text-sm px-4">Swipe or use D-pad to move</p>
+                    
+                    <!-- AI Game Over Message -->
+                    <p id="ai-message" class="text-xs md:text-sm font-medium text-purple-300 italic text-center px-4 mb-2 min-h-[20px] max-w-xs"></p>
+
+                    <!-- AI Run Analyzer / Achievement Badge -->
+                    <div id="ai-achievement-box" class="w-full bg-yellow-900/30 border border-yellow-500/40 rounded-lg p-2 mb-4 hidden transform transition-all">
+                        <div class="flex items-center gap-1.5 mb-1 justify-center">
+                            <i data-lucide="award" class="w-4 h-4 text-yellow-400"></i>
+                            <span id="achievement-title" class="text-[11px] md:text-xs font-bold text-yellow-400 uppercase tracking-wider"></span>
+                        </div>
+                        <p id="achievement-desc" class="text-[10px] md:text-xs text-gray-300 text-center leading-tight"></p>
+                    </div>
+
+                    <!-- Global Leaderboard (Hidden until active) -->
+                    <div id="leaderboard-container" class="w-full bg-gray-900/60 rounded-lg p-3 mb-4 border border-gray-800 hidden">
+                        <h3 class="text-[10px] text-gray-400 font-bold uppercase tracking-widest text-center mb-2 flex items-center justify-center gap-1">
+                            <i data-lucide="trophy" class="w-3 h-3 text-yellow-500"></i> Global Top 3
+                        </h3>
+                        <ul id="leaderboard-list" class="text-xs space-y-1">
+                            <!-- Populated by JS -->
+                        </ul>
+                    </div>
+                    
+                    <!-- Speed Selection -->
+                    <div class="flex gap-2 md:gap-3 mb-6">
+                        <button id="speed-slow" class="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-full border-2 border-green-500 text-green-500 font-bold transition-colors">Slow</button>
+                        <button id="speed-mod" class="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-full border-2 border-green-500 bg-green-500 text-gray-950 font-bold transition-colors">Normal</button>
+                        <button id="speed-fast" class="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-full border-2 border-green-500 text-green-500 font-bold transition-colors">Fast</button>
+                    </div>
+
+                    <button id="startBtn" class="bg-green-500 hover:bg-green-400 text-gray-950 font-bold py-3 md:py-4 px-8 md:px-10 rounded-full text-lg md:text-xl shadow-[0_0_15px_rgba(34,197,94,0.6)] transition-all transform hover:scale-105 active:scale-95 mb-6 w-full max-w-[250px]">
+                        PLAY NOW
+                    </button>
+
+                    <!-- AI Theme Generator (Unlocked) -->
+                    <div id="theme-generator-box" class="w-full bg-gray-900/80 p-3 md:p-4 rounded-xl border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.1)] hidden">
+                        <h3 class="text-[10px] md:text-xs font-bold text-purple-400 mb-2 text-center uppercase tracking-widest flex justify-center items-center gap-1">
+                            <i data-lucide="wand-2" class="w-3 h-3"></i> AI Theme Generator
+                        </h3>
+                        <div class="flex gap-2">
+                            <input type="text" id="theme-prompt" placeholder="e.g. Cyberpunk..." class="w-full bg-gray-950 border border-gray-700 rounded-lg px-2 py-2 text-xs md:text-sm text-white focus:outline-none focus:border-purple-500 transition-colors">
+                            <button id="btn-generate-theme" class="bg-purple-600 hover:bg-purple-500 text-white px-3 rounded-lg transition-colors flex items-center justify-center font-bold text-xs md:text-sm whitespace-nowrap">
+                                Generate ✨
+                            </button>
+                        </div>
+                        <p id="theme-status" class="text-[10px] md:text-xs text-center text-purple-300 mt-2 hidden">Consulting AI...</p>
+                    </div>
+
+                    <!-- Login Promo (Locked) -->
+                    <div id="login-promo-box" class="w-full bg-gray-900/50 p-4 rounded-xl border border-gray-700 border-dashed text-center">
+                        <i data-lucide="lock" class="w-5 h-5 text-gray-400 mx-auto mb-2"></i>
+                        <p class="text-xs text-gray-400 mb-3">Log in to save your High Score globally and unlock the <strong>AI Theme Generator!</strong></p>
+                        <button id="btn-show-login" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg text-xs md:text-sm transition-colors shadow-lg">
+                            Log In / Register
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Mobile Controls (D-Pad) -->
+    <footer class="w-full flex justify-center items-center p-2 pb-6 h-[35%] min-h-[180px]">
+        <div class="grid grid-cols-3 grid-rows-3 gap-2 w-48 h-48 md:w-64 md:h-64">
+            <div class="col-start-2 row-start-1 dpad-btn" id="btn-up">
+                <i data-lucide="chevron-up" class="w-8 h-8 md:w-10 md:h-10"></i>
+            </div>
+            <div class="col-start-1 row-start-2 dpad-btn" id="btn-left">
+                <i data-lucide="chevron-left" class="w-8 h-8 md:w-10 md:h-10"></i>
+            </div>
+            <div class="col-start-3 row-start-2 dpad-btn" id="btn-right">
+                <i data-lucide="chevron-right" class="w-8 h-8 md:w-10 md:h-10"></i>
+            </div>
+            <div class="col-start-2 row-start-3 dpad-btn" id="btn-down">
+                <i data-lucide="chevron-down" class="w-8 h-8 md:w-10 md:h-10"></i>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Login Modal -->
+    <div id="login-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center hidden px-4">
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative transform transition-all">
+            <button id="btn-close-login" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            <div class="text-center mb-6">
+                <div class="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <i data-lucide="user-circle" class="w-6 h-6 text-blue-500"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-1">Join the Leaderboard</h3>
+                <p class="text-xs text-gray-400">Save your high score and unlock AI Themes!</p>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1">Player Name</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="login-name" placeholder="e.g. SnakeKing99" maxlength="15" class="w-full flex-grow bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
+                        <!-- AI Name Generator Button -->
+                        <button id="btn-ai-name" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-3 rounded-lg transition-colors flex items-center justify-center text-xs whitespace-nowrap shadow-[0_0_10px_rgba(168,85,247,0.3)]">
+                            Auto ✨
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1">Email (Optional)</label>
+                    <input type="email" id="login-email" placeholder="name@example.com" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <button id="btn-submit-login" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg mt-2 transition-colors flex justify-center items-center">
+                    <span>Save Profile & Continue</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- We use type="module" to enable Firebase imports securely -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // --- Firebase Cloud Storage Setup ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-snake-app';
+        let db, auth, currentUser;
+        let hasProfile = false;
+        let playerName = "Player";
+        let dbHighScore = 0; // High score pulled from DB
+        
+        try {
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+            if (firebaseConfig) {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                
+                // Rule 3: Auth before Queries - wrapped in an async function to enforce strict awaiting
+                const initFirebase = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error('Firebase Auth Error:', error);
+                        return; // Halt execution so queries don't run without auth
+                    }
+
+                    // Only listen for auth state AFTER the initial token is fully validated
+                    onAuthStateChanged(auth, async (user) => {
+                        currentUser = user;
+                        if (!user) return;
+
+                        // Safely execute getDoc, catching Missing Permissions to prevent UNHANDLEDREJECTION
+                        try {
+                            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', user.uid);
+                            const docSnap = await getDoc(docRef);
+                            
+                            if (docSnap.exists()) {
+                                hasProfile = true;
+                                playerName = docSnap.data().name;
+                                dbHighScore = docSnap.data().score || 0;
+                                highScore = Math.max(highScore, dbHighScore);
+                                document.getElementById('highScoreDisplay').innerText = highScore;
+                                unlockPremiumFeatures();
+                            }
+                        } catch (e) {
+                            console.error("Error fetching profile from cloud:", e);
+                        }
+
+                        // Subscribe to Live Leaderboard safely
+                        try {
+                            const lbCollection = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+                            onSnapshot(lbCollection, (snapshot) => {
+                                let players = [];
+                                snapshot.forEach(d => {
+                                    if(d.data().score > 0) players.push({ id: d.id, ...d.data() });
+                                });
+                                // Sort locally
+                                players.sort((a, b) => b.score - a.score);
+                                updateLeaderboardUI(players.slice(0, 3));
+                            }, (err) => console.error("Snapshot connection error:", err));
+                        } catch (e) {
+                            console.error("Error setting up snapshot listner:", e);
+                        }
+                    });
+                };
+                
+                initFirebase();
+            }
+        } catch(e) {
+            console.warn("Cloud features offline in this environment.", e);
+        }
+
+        async function saveScoreToCloud(finalScore) {
+            if (!currentUser || !hasProfile || !db) return;
+            if (finalScore <= dbHighScore) return; // Only write if it's a new personal best
+            
+            dbHighScore = finalScore;
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', currentUser.uid);
+                await setDoc(docRef, { name: playerName, score: finalScore }, { merge: true });
+            } catch(e) { console.error("Error saving score to cloud:", e); }
+        }
+
+        // --- Game Constants & Variables ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let tileCount = 20; 
+        let tileSize = 0;
+        let headX = 10, headY = 10;
+        let snakeParts = [];
+        let tailLength = 2; 
+        
+        let appleX = 5, appleY = 5;
+        
+        let xVelocity = 0, yVelocity = 0;
+        let nextXVelocity = 0, nextYVelocity = 0;
+        let inputQueue = []; 
+        
+        let score = 0;
+        let highScore = 0;
+        let baseSpeed = 8; 
+        let speed = 8; 
+        let isGameOver = false;
+        let isGameRunning = false;
+        let lastRenderTime = 0;
+        let gamesPlayed = 0; // The Trigger Counter
+
+        let foodSymbols = ['🍎', '🍕', '🍒', '🍓', '🍉', '🍇', '🍔', '🌮', '🍩', '🧀'];
+        let currentFoodSymbol = '🍎';
+
+        let currentThemeName = "Neon Retro";
+        let currentTheme = {
+            bg: '#111827', grid: '#1f2937', snakeHead: '#4ade80', snakeBody: '#22c55e'
+        };
+
+        // Reset to empty for platform environments
+        const apiKey = ""; 
+
+        function hexToRgb(hex) {
+            var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : { r: 34, g: 197, b: 94 };
+        }
+
+        async function fetchGemini(payload, retries = 5) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const delays = [1000, 2000, 4000, 8000, 16000];
+
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) {
+                        if (response.status >= 400 && response.status < 500 && response.status !== 429) throw new Error(`Client Error ${response.status}`);
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    if (error.message.startsWith('Client Error')) throw error; 
+                    if (i === retries - 1) throw error;
+                    await new Promise(resolve => setTimeout(resolve, delays[i]));
+                }
+            }
+        }
+
+        // --- Core UI & Sizing ---
+        function resizeCanvas() {
+            const container = document.getElementById('game-container').parentElement;
+            let rawSize = Math.min(container.clientWidth - 16, container.clientHeight - 16, 500);
+            const size = Math.max(150, rawSize); 
+            const adjustedSize = Math.floor(size / tileCount) * tileCount;
+            
+            canvas.width = adjustedSize;
+            canvas.height = adjustedSize;
+            tileSize = canvas.width / tileCount;
+            
+            if (!isGameRunning && !isGameOver) drawGame();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        setTimeout(resizeCanvas, 50);
+
+        // --- Game Engine ---
+        function gameLoop(currentTime) {
+            if (isGameOver) return;
+            window.requestAnimationFrame(gameLoop);
+            const secondsSinceLastRender = (currentTime - lastRenderTime) / 1000;
+            const currentSpeed = Math.min(speed + Math.floor(score / 5), 25);
+            
+            if (secondsSinceLastRender < 1 / currentSpeed) return;
+            lastRenderTime = currentTime;
+
+            update();
+            drawGame();
+        }
+
+        function update() {
+            if (inputQueue.length > 0) {
+                let nextDir = inputQueue.shift();
+                if (nextDir === 'up') { xVelocity = 0; yVelocity = -1; }
+                if (nextDir === 'down') { xVelocity = 0; yVelocity = 1; }
+                if (nextDir === 'left') { xVelocity = -1; yVelocity = 0; }
+                if (nextDir === 'right') { xVelocity = 1; yVelocity = 0; }
+            }
+
+            headX += xVelocity;
+            headY += yVelocity;
+
+            if (headX < 0) headX = tileCount - 1; 
+            if (headX >= tileCount) headX = 0;
+            if (headY < 0) headY = tileCount - 1;
+            if (headY >= tileCount) headY = 0;
+
+            for (let i = 0; i < snakeParts.length; i++) {
+                if (snakeParts[i].x === headX && snakeParts[i].y === headY && isGameRunning && (xVelocity !== 0 || yVelocity !== 0)) {
+                    handleGameOver();
+                    return;
+                }
+            }
+
+            snakeParts.push({x: headX, y: headY});
+            while (snakeParts.length > tailLength) snakeParts.shift();
+
+            if (headX === appleX && headY === appleY) appleCollision();
+        }
+
+        function appleCollision() {
+            score++;
+            document.getElementById('scoreDisplay').innerText = score;
+            tailLength++;
+            
+            if (navigator.vibrate) navigator.vibrate(50);
+            currentFoodSymbol = foodSymbols[Math.floor(Math.random() * foodSymbols.length)];
+            
+            let emptySpaces = [];
+            for(let x = 0; x < tileCount; x++){
+                for(let y = 0; y < tileCount; y++){
+                    let occupied = (headX === x && headY === y);
+                    for(let part of snakeParts) if(part.x === x && part.y === y) occupied = true;
+                    if(!occupied) emptySpaces.push({x, y});
+                }
+            }
+            if(emptySpaces.length > 0) {
+                let rand = emptySpaces[Math.floor(Math.random() * emptySpaces.length)];
+                appleX = rand.x; appleY = rand.y;
+            } else {
+                snakeParts = []; tailLength = 2;
+                appleX = Math.floor(tileCount / 2); appleY = Math.floor(tileCount / 2);
+            }
+        }
+
+        function drawGame() {
+            ctx.fillStyle = currentTheme.bg; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.strokeStyle = currentTheme.grid; 
+            ctx.lineWidth = 0.5;
+            for(let i = 0; i < tileCount; i++) {
+                ctx.beginPath(); ctx.moveTo(i * tileSize, 0); ctx.lineTo(i * tileSize, canvas.height); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, i * tileSize); ctx.lineTo(canvas.width, i * tileSize); ctx.stroke();
+            }
+
+            ctx.shadowBlur = 0;
+            ctx.font = `${Math.floor(tileSize * 0.8)}px sans-serif`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(currentFoodSymbol, appleX * tileSize + tileSize / 2, appleY * tileSize + tileSize / 2);
+
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = currentTheme.snakeBody;
+            const rgbBody = hexToRgb(currentTheme.snakeBody);
+
+            for (let i = 0; i < snakeParts.length; i++) {
+                let part = snakeParts[i];
+                ctx.fillStyle = (i === snakeParts.length - 1) ? currentTheme.snakeHead : `rgba(${rgbBody.r}, ${rgbBody.g}, ${rgbBody.b}, ${(i+1)/snakeParts.length})`;
+                ctx.beginPath();
+                ctx.roundRect(part.x * tileSize + 1, part.y * tileSize + 1, tileSize - 2, tileSize - 2, 3);
+                ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+        }
+
+        // --- Controls ---
+        function changeDirection(dir) {
+            if (!isGameRunning || inputQueue.length >= 3) return;
+            let lastDir = inputQueue.length > 0 ? inputQueue[inputQueue.length - 1] :
+                          (xVelocity === 1 ? 'right' : xVelocity === -1 ? 'left' : yVelocity === 1 ? 'down' : yVelocity === -1 ? 'up' : '');
+
+            if (dir === 'up' && lastDir !== 'down') inputQueue.push('up');
+            if (dir === 'down' && lastDir !== 'up') inputQueue.push('down');
+            if (dir === 'left' && lastDir !== 'right') inputQueue.push('left');
+            if (dir === 'right' && lastDir !== 'left') inputQueue.push('right');
+        }
+
+        document.body.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'w') changeDirection('up');
+            if (e.key === 'ArrowDown' || e.key === 's') changeDirection('down');
+            if (e.key === 'ArrowLeft' || e.key === 'a') changeDirection('left');
+            if (e.key === 'ArrowRight' || e.key === 'd') changeDirection('right');
+        });
+
+        ['up','down','left','right'].forEach(dir => {
+            const btn = document.getElementById(`btn-${dir}`);
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); changeDirection(dir); }, {passive: false});
+            btn.addEventListener('mousedown', () => changeDirection(dir));
+        });
+
+        let tStartX = 0, tStartY = 0;
+        const gC = document.getElementById('game-container');
+        gC.addEventListener('touchstart', e => { tStartX = e.changedTouches[0].screenX; tStartY = e.changedTouches[0].screenY; }, {passive: true});
+        gC.addEventListener('touchend', e => {
+            let dx = e.changedTouches[0].screenX - tStartX, dy = e.changedTouches[0].screenY - tStartY;
+            if (Math.abs(dx) > Math.abs(dy)) { if(Math.abs(dx) > 30) changeDirection(dx > 0 ? 'right' : 'left'); }
+            else { if(Math.abs(dy) > 30) changeDirection(dy > 0 ? 'down' : 'up'); }
+        }, {passive: true});
+
+        // --- Game Flow & Login Trigger ---
+        function startGame() {
+            headX = 10; headY = 10; snakeParts = [{x: 10, y: 10}]; tailLength = 2;
+            appleX = 15; appleY = 10; xVelocity = 0; yVelocity = 0; inputQueue = ['right'];
+            score = 0; document.getElementById('scoreDisplay').innerText = score;
+            speed = baseSpeed; isGameOver = false;
+            
+            document.getElementById('overlay').classList.add('hidden');
+            document.getElementById('ai-achievement-box').classList.add('hidden');
+            document.getElementById('ai-message').innerText = ""; 
+            isGameRunning = true;
+            lastRenderTime = performance.now();
+            window.requestAnimationFrame(gameLoop);
+        }
+
+        function handleGameOver() {
+            isGameOver = true; isGameRunning = false;
+            gamesPlayed++;
+            
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            
+            if (score > highScore) {
+                highScore = score;
+                document.getElementById('highScoreDisplay').innerText = highScore;
+                if(hasProfile) saveScoreToCloud(highScore);
+            }
+
+            document.getElementById('overlay-title').innerText = "GAME OVER";
+            document.getElementById('startBtn').innerText = "PLAY AGAIN";
+            document.getElementById('overlay').classList.remove('hidden');
+            
+            generateGameOverMessage(score);
+            generateRunAchievement(score);
+
+            // THE CARROT: Trigger Login after 5 games if not logged in
+            if (gamesPlayed >= 5 && !hasProfile) {
+                setTimeout(() => openLoginModal(), 1500); // Slight delay so they can read Game Over first
+            }
+        }
+
+        document.getElementById('startBtn').addEventListener('click', startGame);
+
+        // --- UI Modal & Leaderboard Logic ---
+        function unlockPremiumFeatures() {
+            document.getElementById('login-promo-box').classList.add('hidden');
+            document.getElementById('theme-generator-box').classList.remove('hidden');
+            document.getElementById('leaderboard-container').classList.remove('hidden');
+        }
+
+        function updateLeaderboardUI(players) {
+            const list = document.getElementById('leaderboard-list');
+            list.innerHTML = '';
+            if(players.length === 0) {
+                list.innerHTML = '<li class="text-gray-500 text-center py-1">No scores yet!</li>';
+                return;
+            }
+            players.forEach((p, i) => {
+                const color = i === 0 ? 'text-yellow-400' : i === 1 ? 'text-gray-300' : 'text-amber-600';
+                list.innerHTML += `
+                    <li class="flex justify-between items-center bg-gray-800/50 px-3 py-1.5 rounded">
+                        <span class="flex gap-2 items-center"><span class="font-bold ${color}">#${i+1}</span> <span class="text-gray-200 truncate max-w-[100px]">${p.name}</span></span>
+                        <span class="font-bold text-green-400">${p.score} pts</span>
+                    </li>`;
+            });
+        }
+
+        function openLoginModal() { document.getElementById('login-modal').classList.remove('hidden'); }
+        function closeLoginModal() { document.getElementById('login-modal').classList.add('hidden'); }
+
+        document.getElementById('btn-show-login').addEventListener('click', openLoginModal);
+        document.getElementById('btn-close-login').addEventListener('click', closeLoginModal);
+        
+        document.getElementById('btn-submit-login').addEventListener('click', async () => {
+            const nameInput = document.getElementById('login-name').value.trim();
+            if (!nameInput) return;
+            
+            const btn = document.getElementById('btn-submit-login');
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>';
+            lucide.createIcons();
+            
+            playerName = nameInput;
+            hasProfile = true;
+            
+            // Push profile and current local highscore to cloud immediately
+            await saveScoreToCloud(highScore);
+            
+            unlockPremiumFeatures();
+            closeLoginModal();
+            btn.innerText = "Save Profile & Continue";
+        });
+
+        // --- AI Features ---
+
+        // 1. AI Gamer Tag Generator ✨
+        document.getElementById('btn-ai-name').addEventListener('click', async (e) => {
+            e.preventDefault();
+            const nameInput = document.getElementById('login-name');
+            nameInput.value = "Generating... ✨";
+            
+            const payload = {
+                contents: [{ parts: [{ text: "Generate a single, cool, slightly edgy 1-2 word gamer tag for a player of the classic Snake game. Only return the name, no quotes." }] }],
+                systemInstruction: { parts: [{ text: "You are a creative name generator." }] }
+            };
+            try {
+                const data = await fetchGemini(payload);
+                if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    nameInput.value = data.candidates[0].content.parts[0].text.trim().replace(/['"]/g, '');
+                } else throw new Error();
+            } catch(e) {
+                nameInput.value = "SnakePro" + Math.floor(Math.random() * 1000);
+            }
+        });
+
+        // 2. AI Theme Generator ✨
+        async function generateTheme() {
+            const prompt = document.getElementById('theme-prompt').value.trim() || 'Neon Retro';
+            const status = document.getElementById('theme-status');
+            const btn = document.getElementById('btn-generate-theme');
+            
+            status.innerText = "Designing theme... ✨";
+            status.classList.remove('hidden', 'text-red-400');
+            status.classList.add('text-purple-300');
+            btn.disabled = true; btn.classList.add('opacity-50');
+
+            const payload = {
+                contents: [{ parts: [{ text: `Create a dark-mode color theme and emoji set for a snake game based on this concept: "${prompt}". Return exactly 5 relevant emojis.` }] }],
+                systemInstruction: { parts: [{ text: "You are a creative UI designer. Respond ONLY in valid JSON with keys: bg, grid, snakeHead, snakeBody, foodEmojis(array of 5)." }] },
+                generationConfig: { responseMimeType: "application/json" }
+            };
+
+            try {
+                const data = await fetchGemini(payload);
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                    const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    const newTheme = JSON.parse(cleanText);
+                    
+                    currentThemeName = prompt;
+                    currentTheme = {
+                        bg: newTheme.bg || '#111827', grid: newTheme.grid || '#1f2937',
+                        snakeHead: newTheme.snakeHead || '#4ade80', snakeBody: newTheme.snakeBody || '#22c55e'
+                    };
+                    if (newTheme.foodEmojis && newTheme.foodEmojis.length > 0) {
+                        foodSymbols = newTheme.foodEmojis;
+                        currentFoodSymbol = foodSymbols[0];
+                    }
+                    drawGame();
+                    status.innerText = "Theme applied! ✨";
+                } else {
+                    throw new Error("No text returned from API");
+                }
+            } catch (err) {
+                console.warn("API failed, using offline fallback themes.", err);
+                const offlineThemes = [
+                    { name: "Cyberpunk", bg: "#0f0f1a", grid: "#1f1f33", snakeHead: "#ff00ff", snakeBody: "#00ffff", foodEmojis: ["🔋", "💿", "🕹️", "💊", "🚀"] },
+                    { name: "Ocean", bg: "#001a33", grid: "#003366", snakeHead: "#00ffff", snakeBody: "#0080ff", foodEmojis: ["🐟", "🐙", "🦀", "🐡", "🦑"] },
+                    { name: "Matrix", bg: "#001100", grid: "#003300", snakeHead: "#00ff00", snakeBody: "#008000", foodEmojis: ["💾", "📞", "🕶️", "💻", "📟"] },
+                    { name: "Candy", bg: "#33001a", grid: "#660033", snakeHead: "#ff66b2", snakeBody: "#ff0066", foodEmojis: ["🍬", "🍭", "🍫", "🍩", "🧁"] },
+                    { name: "Halloween", bg: "#1a051d", grid: "#300b36", snakeHead: "#ff7300", snakeBody: "#cc5500", foodEmojis: ["🎃", "👻", "🦇", "🕷️", "💀"] }
+                ];
+                const fallback = offlineThemes[Math.floor(Math.random() * offlineThemes.length)];
+                currentThemeName = fallback.name;
+                currentTheme = { bg: fallback.bg, grid: fallback.grid, snakeHead: fallback.snakeHead, snakeBody: fallback.snakeBody };
+                foodSymbols = fallback.foodEmojis;
+                currentFoodSymbol = foodSymbols[0];
+                drawGame();
+                status.innerText = `Offline Theme: ${fallback.name} ✨`;
+                status.classList.replace('text-red-400', 'text-purple-300');
+            } finally {
+                btn.disabled = false; btn.classList.remove('opacity-50');
+                setTimeout(() => { if(status.innerText.includes("✨")) status.classList.add('hidden'); }, 3000);
+            }
+        }
+
+        // 3. AI Game Over Snark ✨
+        async function generateGameOverMessage(finalScore) {
+            const msgEl = document.getElementById('ai-message');
+            msgEl.innerText = "AI is judging your performance... ✨";
+            const payload = {
+                contents: [{ parts: [{ text: `Player got Game Over scoring ${finalScore}. Give a short 1 sentence funny/snarky reaction.` }] }],
+                systemInstruction: { parts: [{ text: "You are a snarky video game announcer." }] }
+            };
+            try {
+                const data = await fetchGemini(payload);
+                if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    msgEl.innerText = `"${data.candidates[0].content.parts[0].text.trim()}"`;
+                } else {
+                    throw new Error("No data returned");
+                }
+            } catch (err) {
+                const snarkyOffline = [
+                    "Is that all you got?",
+                    "My grandma plays better than that.",
+                    "Did your fingers slip?",
+                    "Ouch. Right in the tail.",
+                    "Good try! Keep practicing."
+                ];
+                msgEl.innerText = `"${snarkyOffline[Math.floor(Math.random() * snarkyOffline.length)]}"`;
+            }
+        }
+
+        // 4. AI Run Analyzer & Achievement Generator ✨
+        async function generateRunAchievement(finalScore) {
+            const achBox = document.getElementById('ai-achievement-box');
+            const titleEl = document.getElementById('achievement-title');
+            const descEl = document.getElementById('achievement-desc');
+            
+            achBox.classList.remove('hidden');
+            titleEl.innerText = "Analyzing Run... ✨";
+            descEl.innerText = "";
+
+            const payload = {
+                contents: [{ parts: [{ text: `The player just scored ${finalScore} points using a ${currentThemeName} theme in Snake. Invent a funny, unique achievement for this specific run.` }] }],
+                systemInstruction: { parts: [{ text: "Respond ONLY in valid JSON with keys: title (max 4 words), description (1 short funny sentence)." }] },
+                generationConfig: { responseMimeType: "application/json" }
+            };
+
+            try {
+                const data = await fetchGemini(payload);
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                    const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    const ach = JSON.parse(cleanText);
+                    titleEl.innerText = ach.title + " ✨";
+                    descEl.innerText = ach.description;
+                } else {
+                    throw new Error("No data returned");
+                }
+            } catch (err) {
+                const offlineAchievements = [
+                    { title: "The Vanilla Slider", description: "You slithered adequately." },
+                    { title: "The Wall Hugger", description: "You really like the edges of the board." },
+                    { title: "The Snack Enthusiast", description: "At least you ate something." }
+                ];
+                const fallbackAch = offlineAchievements[Math.floor(Math.random() * offlineAchievements.length)];
+                titleEl.innerText = fallbackAch.title;
+                descEl.innerText = fallbackAch.description;
+            }
+        }
+
+        document.getElementById('btn-generate-theme').addEventListener('click', generateTheme);
+        document.getElementById('theme-prompt').addEventListener('keypress', (e) => { if (e.key === 'Enter') generateTheme(); });
+
+        // Speed Logic
+        ['slow', 'mod', 'fast'].forEach((speedStr) => {
+            document.getElementById(`speed-${speedStr}`).addEventListener('click', (e) => {
+                baseSpeed = speedStr === 'slow' ? 5 : speedStr === 'mod' ? 8 : 13;
+                speed = baseSpeed;
+                ['slow', 'mod', 'fast'].forEach(s => {
+                    document.getElementById(`speed-${s}`).classList.remove('bg-green-500', 'text-gray-950');
+                    document.getElementById(`speed-${s}`).classList.add('text-green-500');
+                });
+                e.target.classList.remove('text-green-500');
+                e.target.classList.add('bg-green-500', 'text-gray-950');
+            });
+        });
+
+    </script>
+</body>
+</html>
