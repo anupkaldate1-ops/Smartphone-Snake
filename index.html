@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#030712">
     <meta name="mobile-web-app-capable" content="yes">
 
-    <title>Modern Snake</title>
+    <title>Neon Serpent</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -21,8 +21,8 @@
         }
         
         #game-container {
-            box-shadow: 0 0 20px rgba(34, 197, 94, 0.2);
-            transition: box-shadow 0.3s ease;
+            box-shadow: 0 0 25px rgba(34, 197, 94, 0.2);
+            transition: box-shadow 0.3s ease, border-color 0.3s ease;
         }
 
         .dpad-btn {
@@ -64,16 +64,16 @@
         </div>
     </header>
 
-    <!-- Game Canvas Area -->
-    <main class="w-full flex-grow flex items-center justify-center relative p-2 md:p-4 h-[55%]">
-        <div id="game-container" class="relative bg-gray-900 rounded-xl overflow-hidden border border-gray-800">
-            <canvas id="gameCanvas"></canvas>
+    <!-- Game Canvas Area (Expanded h-[62%]) -->
+    <main class="w-full flex-grow flex items-center justify-center relative p-2 md:p-4 h-[62%]">
+        <div id="game-container" class="relative bg-gray-900 rounded-xl overflow-hidden border border-gray-800 w-full h-full max-w-[600px] max-h-[600px] flex items-center justify-center">
+            <canvas id="gameCanvas" class="block m-auto"></canvas>
             
             <!-- Start/Game Over Overlay -->
             <div id="overlay" class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm flex flex-col items-center justify-start z-10 w-full h-full overflow-y-auto py-6">
                 <div class="flex flex-col items-center justify-center w-full px-4 max-w-sm mx-auto">
                     
-                    <h2 id="overlay-title" class="text-3xl md:text-4xl font-black mb-1 text-white tracking-widest text-center mt-4">SNAKE</h2>
+                    <h2 id="overlay-title" class="text-3xl md:text-4xl font-black mb-1 text-white tracking-widest text-center mt-2">NEON SERPENT</h2>
                     <p id="overlay-subtitle" class="text-gray-400 mb-2 text-center text-xs md:text-sm px-4">Swipe or use D-pad to move</p>
                     
                     <!-- AI Game Over Message -->
@@ -86,6 +86,13 @@
                             <span id="achievement-title" class="text-[11px] md:text-xs font-bold text-yellow-400 uppercase tracking-wider"></span>
                         </div>
                         <p id="achievement-desc" class="text-[10px] md:text-xs text-gray-300 text-center leading-tight"></p>
+                    </div>
+
+                    <!-- NEW: AI Epic Tale Feature -->
+                    <button id="btn-epic-tale" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg text-xs md:text-sm transition-colors shadow-[0_0_10px_rgba(79,70,229,0.3)] w-full max-w-[250px] mb-4 hidden flex justify-center items-center gap-2">
+                        <i data-lucide="book-open" class="w-4 h-4"></i> Generate Epic Tale ✨
+                    </button>
+                    <div id="epic-tale-box" class="w-full bg-indigo-900/30 border border-indigo-500/40 rounded-lg p-3 mb-4 hidden transform transition-all text-[10px] md:text-xs text-indigo-200 italic text-center leading-relaxed">
                     </div>
 
                     <!-- Global Leaderboard (Hidden until active) -->
@@ -105,28 +112,29 @@
                         <button id="speed-fast" class="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-full border-2 border-green-500 text-green-500 font-bold transition-colors">Fast</button>
                     </div>
 
-                    <button id="startBtn" class="bg-green-500 hover:bg-green-400 text-gray-950 font-bold py-3 md:py-4 px-8 md:px-10 rounded-full text-lg md:text-xl shadow-[0_0_15px_rgba(34,197,94,0.6)] transition-all transform hover:scale-105 active:scale-95 mb-6 w-full max-w-[250px]">
+                    <button id="startBtn" class="bg-green-500 hover:bg-green-400 text-gray-950 font-bold py-3 md:py-4 px-8 md:px-10 rounded-full text-lg md:text-xl shadow-[0_0_15px_rgba(34,197,94,0.6)] transition-all transform hover:scale-105 active:scale-95 mb-4 w-full max-w-[250px]">
                         PLAY NOW
                     </button>
 
-                    <!-- AI Theme Generator (Unlocked) -->
-                    <div id="theme-generator-box" class="w-full bg-gray-900/80 p-3 md:p-4 rounded-xl border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.1)] hidden">
+                    <!-- Theme Selector (Unlocked) -->
+                    <div id="theme-selector-box" class="w-full bg-gray-900/80 p-3 rounded-xl border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.1)] hidden mb-4">
                         <h3 class="text-[10px] md:text-xs font-bold text-purple-400 mb-2 text-center uppercase tracking-widest flex justify-center items-center gap-1">
-                            <i data-lucide="wand-2" class="w-3 h-3"></i> AI Theme Generator
+                            <i data-lucide="palette" class="w-3 h-3"></i> Choose Theme
                         </h3>
-                        <div class="flex gap-2">
-                            <input type="text" id="theme-prompt" placeholder="e.g. Cyberpunk..." class="w-full bg-gray-950 border border-gray-700 rounded-lg px-2 py-2 text-xs md:text-sm text-white focus:outline-none focus:border-purple-500 transition-colors">
-                            <button id="btn-generate-theme" class="bg-purple-600 hover:bg-purple-500 text-white px-3 rounded-lg transition-colors flex items-center justify-center font-bold text-xs md:text-sm whitespace-nowrap">
-                                Generate ✨
-                            </button>
-                        </div>
-                        <p id="theme-status" class="text-[10px] md:text-xs text-center text-purple-300 mt-2 hidden">Consulting AI...</p>
+                        <select id="theme-dropdown" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-xs md:text-sm text-white focus:outline-none focus:border-purple-500 transition-colors cursor-pointer">
+                            <option value="Neon Retro">Neon Retro (Default)</option>
+                            <option value="Cyberpunk">Cyberpunk</option>
+                            <option value="Ocean">Deep Ocean</option>
+                            <option value="Matrix">The Matrix</option>
+                            <option value="Candy">Candy Land</option>
+                            <option value="Halloween">Halloween</option>
+                        </select>
                     </div>
 
                     <!-- Login Promo (Locked) -->
                     <div id="login-promo-box" class="w-full bg-gray-900/50 p-4 rounded-xl border border-gray-700 border-dashed text-center">
                         <i data-lucide="lock" class="w-5 h-5 text-gray-400 mx-auto mb-2"></i>
-                        <p class="text-xs text-gray-400 mb-3">Log in to save your High Score globally and unlock the <strong>AI Theme Generator!</strong></p>
+                        <p class="text-xs text-gray-400 mb-3">Log in to save your High Score globally and unlock <strong>Custom Themes!</strong></p>
                         <button id="btn-show-login" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg text-xs md:text-sm transition-colors shadow-lg">
                             Log In / Register
                         </button>
@@ -137,9 +145,9 @@
         </div>
     </main>
 
-    <!-- Mobile Controls (D-Pad) -->
-    <footer class="w-full flex justify-center items-center p-2 pb-6 h-[35%] min-h-[180px]">
-        <div class="grid grid-cols-3 grid-rows-3 gap-2 w-48 h-48 md:w-64 md:h-64">
+    <!-- Mobile Controls (D-Pad, reduced height slightly to favor canvas) -->
+    <footer class="w-full flex justify-center items-center p-2 pb-6 h-[28%] min-h-[160px]">
+        <div class="grid grid-cols-3 grid-rows-3 gap-2 w-48 h-48 md:w-56 md:h-56">
             <div class="col-start-2 row-start-1 dpad-btn" id="btn-up">
                 <i data-lucide="chevron-up" class="w-8 h-8 md:w-10 md:h-10"></i>
             </div>
@@ -166,7 +174,7 @@
                     <i data-lucide="user-circle" class="w-6 h-6 text-blue-500"></i>
                 </div>
                 <h3 class="text-xl font-bold text-white mb-1">Join the Leaderboard</h3>
-                <p class="text-xs text-gray-400">Save your high score and unlock AI Themes!</p>
+                <p class="text-xs text-gray-400">Save your high score and unlock Themes!</p>
             </div>
             <div class="space-y-4">
                 <div>
@@ -213,7 +221,7 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
                 
-                // Rule 3: Auth before Queries - wrapped in an async function to enforce strict awaiting
+                // Rule 3: Auth before Queries
                 const initFirebase = async () => {
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -223,15 +231,13 @@
                         }
                     } catch (error) {
                         console.error('Firebase Auth Error:', error);
-                        return; // Halt execution so queries don't run without auth
+                        return;
                     }
 
-                    // Only listen for auth state AFTER the initial token is fully validated
                     onAuthStateChanged(auth, async (user) => {
                         currentUser = user;
                         if (!user) return;
 
-                        // Safely execute getDoc, catching Missing Permissions to prevent UNHANDLEDREJECTION
                         try {
                             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', user.uid);
                             const docSnap = await getDoc(docRef);
@@ -256,7 +262,6 @@
                                 snapshot.forEach(d => {
                                     if(d.data().score > 0) players.push({ id: d.id, ...d.data() });
                                 });
-                                // Sort locally
                                 players.sort((a, b) => b.score - a.score);
                                 updateLeaderboardUI(players.slice(0, 3));
                             }, (err) => console.error("Snapshot connection error:", err));
@@ -274,7 +279,7 @@
 
         async function saveScoreToCloud(finalScore) {
             if (!currentUser || !hasProfile || !db) return;
-            if (finalScore <= dbHighScore) return; // Only write if it's a new personal best
+            if (finalScore <= dbHighScore) return; 
             
             dbHighScore = finalScore;
             try {
@@ -306,17 +311,23 @@
         let isGameOver = false;
         let isGameRunning = false;
         let lastRenderTime = 0;
-        let gamesPlayed = 0; // The Trigger Counter
+        let gamesPlayed = 0;
 
-        let foodSymbols = ['🍎', '🍕', '🍒', '🍓', '🍉', '🍇', '🍔', '🌮', '🍩', '🧀'];
-        let currentFoodSymbol = '🍎';
-
-        let currentThemeName = "Neon Retro";
-        let currentTheme = {
-            bg: '#111827', grid: '#1f2937', snakeHead: '#4ade80', snakeBody: '#22c55e'
+        // Theme Data Dictionary
+        const themeLibrary = {
+            "Neon Retro": { bg: '#111827', grid: '#1f2937', snakeHead: '#4ade80', snakeBody: '#22c55e', foodEmojis: ['🍎', '🍕', '🍒', '🍓', '🍉', '🍇', '🍔', '🌮', '🍩'] },
+            "Cyberpunk": { bg: "#0f0f1a", grid: "#1f1f33", snakeHead: "#ff00ff", snakeBody: "#00ffff", foodEmojis: ["🔋", "💿", "🕹️", "💊", "🚀"] },
+            "Ocean": { bg: "#001a33", grid: "#003366", snakeHead: "#00ffff", snakeBody: "#0080ff", foodEmojis: ["🐟", "🐙", "🦀", "🐡", "🦑"] },
+            "Matrix": { bg: "#001100", grid: "#003300", snakeHead: "#00ff00", snakeBody: "#008000", foodEmojis: ["💾", "📞", "🕶️", "💻", "📟"] },
+            "Candy": { bg: "#33001a", grid: "#660033", snakeHead: "#ff66b2", snakeBody: "#ff0066", foodEmojis: ["🍬", "🍭", "🍫", "🍩", "🧁"] },
+            "Halloween": { bg: "#1a051d", grid: "#300b36", snakeHead: "#ff7300", snakeBody: "#cc5500", foodEmojis: ["🎃", "👻", "🦇", "🕷️", "💀"] }
         };
 
-        // Reset to empty for platform environments
+        let currentThemeName = "Neon Retro";
+        let currentTheme = { bg: '#111827', grid: '#1f2937', snakeHead: '#4ade80', snakeBody: '#22c55e' };
+        let foodSymbols = themeLibrary["Neon Retro"].foodEmojis;
+        let currentFoodSymbol = '🍎';
+
         const apiKey = ""; 
 
         function hexToRgb(hex) {
@@ -350,8 +361,9 @@
 
         // --- Core UI & Sizing ---
         function resizeCanvas() {
-            const container = document.getElementById('game-container').parentElement;
-            let rawSize = Math.min(container.clientWidth - 16, container.clientHeight - 16, 500);
+            const container = document.getElementById('game-container');
+            // Expanded to fit better on big screens, while maxing safely on small phones
+            let rawSize = Math.min(container.clientWidth - 16, container.clientHeight - 16, 600);
             const size = Math.max(150, rawSize); 
             const adjustedSize = Math.floor(size / tileCount) * tileCount;
             
@@ -507,6 +519,8 @@
             
             document.getElementById('overlay').classList.add('hidden');
             document.getElementById('ai-achievement-box').classList.add('hidden');
+            document.getElementById('btn-epic-tale').classList.add('hidden');
+            document.getElementById('epic-tale-box').classList.add('hidden');
             document.getElementById('ai-message').innerText = ""; 
             isGameRunning = true;
             lastRenderTime = performance.now();
@@ -528,13 +542,14 @@
             document.getElementById('overlay-title').innerText = "GAME OVER";
             document.getElementById('startBtn').innerText = "PLAY AGAIN";
             document.getElementById('overlay').classList.remove('hidden');
+            document.getElementById('btn-epic-tale').classList.remove('hidden');
             
             generateGameOverMessage(score);
             generateRunAchievement(score);
 
-            // THE CARROT: Trigger Login after 5 games if not logged in
+            // Trigger Login after 5 games if not logged in
             if (gamesPlayed >= 5 && !hasProfile) {
-                setTimeout(() => openLoginModal(), 1500); // Slight delay so they can read Game Over first
+                setTimeout(() => openLoginModal(), 1500); 
             }
         }
 
@@ -543,7 +558,7 @@
         // --- UI Modal & Leaderboard Logic ---
         function unlockPremiumFeatures() {
             document.getElementById('login-promo-box').classList.add('hidden');
-            document.getElementById('theme-generator-box').classList.remove('hidden');
+            document.getElementById('theme-selector-box').classList.remove('hidden');
             document.getElementById('leaderboard-container').classList.remove('hidden');
         }
 
@@ -581,13 +596,29 @@
             playerName = nameInput;
             hasProfile = true;
             
-            // Push profile and current local highscore to cloud immediately
             await saveScoreToCloud(highScore);
             
             unlockPremiumFeatures();
             closeLoginModal();
             btn.innerText = "Save Profile & Continue";
         });
+
+        // --- Theme Selection ---
+        document.getElementById('theme-dropdown').addEventListener('change', (e) => {
+            const selected = e.target.value;
+            const t = themeLibrary[selected];
+            
+            currentThemeName = selected;
+            currentTheme = { bg: t.bg, grid: t.grid, snakeHead: t.snakeHead, snakeBody: t.snakeBody };
+            foodSymbols = t.foodEmojis;
+            currentFoodSymbol = foodSymbols[0];
+            
+            // Apply glow matching the theme
+            document.getElementById('game-container').style.boxShadow = `0 0 25px ${t.snakeHead}33`; // 33 is approx 20% opacity hex
+            
+            drawGame();
+        });
+
 
         // --- AI Features ---
 
@@ -611,68 +642,7 @@
             }
         });
 
-        // 2. AI Theme Generator ✨
-        async function generateTheme() {
-            const prompt = document.getElementById('theme-prompt').value.trim() || 'Neon Retro';
-            const status = document.getElementById('theme-status');
-            const btn = document.getElementById('btn-generate-theme');
-            
-            status.innerText = "Designing theme... ✨";
-            status.classList.remove('hidden', 'text-red-400');
-            status.classList.add('text-purple-300');
-            btn.disabled = true; btn.classList.add('opacity-50');
-
-            const payload = {
-                contents: [{ parts: [{ text: `Create a dark-mode color theme and emoji set for a snake game based on this concept: "${prompt}". Return exactly 5 relevant emojis.` }] }],
-                systemInstruction: { parts: [{ text: "You are a creative UI designer. Respond ONLY in valid JSON with keys: bg, grid, snakeHead, snakeBody, foodEmojis(array of 5)." }] },
-                generationConfig: { responseMimeType: "application/json" }
-            };
-
-            try {
-                const data = await fetchGemini(payload);
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (text) {
-                    const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-                    const newTheme = JSON.parse(cleanText);
-                    
-                    currentThemeName = prompt;
-                    currentTheme = {
-                        bg: newTheme.bg || '#111827', grid: newTheme.grid || '#1f2937',
-                        snakeHead: newTheme.snakeHead || '#4ade80', snakeBody: newTheme.snakeBody || '#22c55e'
-                    };
-                    if (newTheme.foodEmojis && newTheme.foodEmojis.length > 0) {
-                        foodSymbols = newTheme.foodEmojis;
-                        currentFoodSymbol = foodSymbols[0];
-                    }
-                    drawGame();
-                    status.innerText = "Theme applied! ✨";
-                } else {
-                    throw new Error("No text returned from API");
-                }
-            } catch (err) {
-                console.warn("API failed, using offline fallback themes.", err);
-                const offlineThemes = [
-                    { name: "Cyberpunk", bg: "#0f0f1a", grid: "#1f1f33", snakeHead: "#ff00ff", snakeBody: "#00ffff", foodEmojis: ["🔋", "💿", "🕹️", "💊", "🚀"] },
-                    { name: "Ocean", bg: "#001a33", grid: "#003366", snakeHead: "#00ffff", snakeBody: "#0080ff", foodEmojis: ["🐟", "🐙", "🦀", "🐡", "🦑"] },
-                    { name: "Matrix", bg: "#001100", grid: "#003300", snakeHead: "#00ff00", snakeBody: "#008000", foodEmojis: ["💾", "📞", "🕶️", "💻", "📟"] },
-                    { name: "Candy", bg: "#33001a", grid: "#660033", snakeHead: "#ff66b2", snakeBody: "#ff0066", foodEmojis: ["🍬", "🍭", "🍫", "🍩", "🧁"] },
-                    { name: "Halloween", bg: "#1a051d", grid: "#300b36", snakeHead: "#ff7300", snakeBody: "#cc5500", foodEmojis: ["🎃", "👻", "🦇", "🕷️", "💀"] }
-                ];
-                const fallback = offlineThemes[Math.floor(Math.random() * offlineThemes.length)];
-                currentThemeName = fallback.name;
-                currentTheme = { bg: fallback.bg, grid: fallback.grid, snakeHead: fallback.snakeHead, snakeBody: fallback.snakeBody };
-                foodSymbols = fallback.foodEmojis;
-                currentFoodSymbol = foodSymbols[0];
-                drawGame();
-                status.innerText = `Offline Theme: ${fallback.name} ✨`;
-                status.classList.replace('text-red-400', 'text-purple-300');
-            } finally {
-                btn.disabled = false; btn.classList.remove('opacity-50');
-                setTimeout(() => { if(status.innerText.includes("✨")) status.classList.add('hidden'); }, 3000);
-            }
-        }
-
-        // 3. AI Game Over Snark ✨
+        // 2. AI Game Over Snark ✨
         async function generateGameOverMessage(finalScore) {
             const msgEl = document.getElementById('ai-message');
             msgEl.innerText = "AI is judging your performance... ✨";
@@ -699,7 +669,7 @@
             }
         }
 
-        // 4. AI Run Analyzer & Achievement Generator ✨
+        // 3. AI Run Analyzer & Achievement Generator ✨
         async function generateRunAchievement(finalScore) {
             const achBox = document.getElementById('ai-achievement-box');
             const titleEl = document.getElementById('achievement-title');
@@ -738,8 +708,36 @@
             }
         }
 
-        document.getElementById('btn-generate-theme').addEventListener('click', generateTheme);
-        document.getElementById('theme-prompt').addEventListener('keypress', (e) => { if (e.key === 'Enter') generateTheme(); });
+        // 4. Epic Tale Generator ✨
+        document.getElementById('btn-epic-tale').addEventListener('click', async () => {
+            const taleBox = document.getElementById('epic-tale-box');
+            const taleBtn = document.getElementById('btn-epic-tale');
+
+            taleBox.classList.remove('hidden');
+            taleBox.innerText = "Scribing your legend... ✨";
+            taleBtn.disabled = true;
+            taleBtn.classList.add('opacity-50');
+
+            const payload = {
+                contents: [{ parts: [{ text: `The player '${playerName}' just died in Snake playing the '${currentThemeName}' theme. They reached a score of ${score}. Write a very short (2 sentences max), overly dramatic, epic fantasy tale about this neon serpent's heroic but ultimately doomed journey.` }] }],
+                systemInstruction: { parts: [{ text: "You are a dramatic medieval bard. Do not use markdown." }] }
+            };
+
+            try {
+                const data = await fetchGemini(payload);
+                if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    taleBox.innerText = data.candidates[0].content.parts[0].text.trim().replace(/['"]/g, '');
+                } else {
+                    throw new Error("No data returned");
+                }
+            } catch (err) {
+                taleBox.innerText = "Alas, the ancient scrolls were lost to the void... (Offline/Error)";
+            } finally {
+                taleBtn.classList.add('hidden'); // Hide the button after generating to keep UI clean
+                taleBtn.disabled = false;
+                taleBtn.classList.remove('opacity-50');
+            }
+        });
 
         // Speed Logic
         ['slow', 'mod', 'fast'].forEach((speedStr) => {
