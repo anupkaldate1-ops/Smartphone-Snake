@@ -403,15 +403,12 @@
             headX += xVelocity;
             headY += yVelocity;
 
-            // --- NEW: Solid Wall Boundaries ---
-            // If the snake hits the edge of the canvas, trigger a Game Over
-            if (headX < 0 || headX >= tileCount || headY < 0 || headY >= tileCount) {
-                // Check if moving to prevent instant death upon loading
-                if (isGameRunning && (xVelocity !== 0 || yVelocity !== 0)) {
-                    handleGameOver();
-                    return;
-                }
-            }
+            // --- Portal Wall Boundaries ---
+            // The snake passes through the glowing edge and wraps around
+            if (headX < 0) headX = tileCount - 1; 
+            if (headX >= tileCount) headX = 0;
+            if (headY < 0) headY = tileCount - 1;
+            if (headY >= tileCount) headY = 0;
 
             for (let i = 0; i < snakeParts.length; i++) {
                 if (snakeParts[i].x === headX && snakeParts[i].y === headY && isGameRunning && (xVelocity !== 0 || yVelocity !== 0)) {
