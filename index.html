@@ -9,6 +9,9 @@
     <meta name="theme-color" content="#030712">
     <meta name="mobile-web-app-capable" content="yes">
 
+    <!-- NEW: PWA Manifest Link -->
+    <link rel="manifest" id="manifest-link">
+
     <title>Neon Serpent</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -52,15 +55,31 @@
 <body class="bg-gray-950 text-white h-[100dvh] w-screen overflow-hidden flex flex-col font-sans selection:bg-transparent">
 
     <!-- Header / Scoreboard -->
-    <header class="w-full flex justify-between items-center p-4 md:p-6 h-[10%] min-h-[60px]">
+    <header class="w-full flex justify-between items-center p-4 md:p-6 h-[10%] min-h-[60px] relative">
         <div class="flex flex-col">
             <span class="text-gray-400 text-xs md:text-sm font-bold uppercase tracking-wider">Score</span>
             <span id="scoreDisplay" class="text-3xl md:text-4xl font-black text-green-400 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]">0</span>
         </div>
         
-        <div class="flex flex-col items-end">
-            <span class="text-gray-400 text-xs md:text-sm font-bold uppercase tracking-wider">Best Session</span>
-            <span id="highScoreDisplay" class="text-2xl md:text-3xl font-bold text-gray-200">0</span>
+        <!-- NEW: In-Game Controls (Hidden by default) -->
+        <div id="in-game-controls" class="hidden flex gap-3 absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
+            <button id="btn-pause" class="bg-gray-900/80 hover:bg-gray-800 p-2 md:p-2.5 rounded-full border border-gray-700 transition-colors shadow-[0_0_10px_rgba(0,0,0,0.5)]">
+                <i data-lucide="pause" class="w-4 h-4 md:w-5 md:h-5 text-yellow-400" id="icon-pause"></i>
+            </button>
+            <button id="btn-home" class="bg-gray-900/80 hover:bg-gray-800 p-2 md:p-2.5 rounded-full border border-gray-700 transition-colors shadow-[0_0_10px_rgba(0,0,0,0.5)]">
+                <i data-lucide="home" class="w-4 h-4 md:w-5 md:h-5 text-blue-400"></i>
+            </button>
+        </div>
+
+        <div class="flex items-center gap-3 md:gap-4">
+            <!-- NEW: Audio Toggle -->
+            <button id="btn-sound" class="text-gray-400 hover:text-white transition-colors z-20">
+                <i data-lucide="volume-2" id="icon-sound" class="w-5 h-5 md:w-6 md:h-6"></i>
+            </button>
+            <div class="flex flex-col items-end">
+                <span class="text-gray-400 text-xs md:text-sm font-bold uppercase tracking-wider">Best Session</span>
+                <span id="highScoreDisplay" class="text-2xl md:text-3xl font-bold text-gray-200">0</span>
+            </div>
         </div>
     </header>
 
@@ -69,6 +88,12 @@
         <div id="game-container" class="relative bg-gray-900 rounded-xl overflow-hidden border border-gray-800 w-full h-full max-w-[600px] max-h-[600px] flex items-center justify-center">
             <canvas id="gameCanvas" class="block m-auto"></canvas>
             
+            <!-- Paused Overlay (NEW) -->
+            <div id="pause-overlay" class="absolute inset-0 bg-gray-950/50 backdrop-blur-sm flex flex-col items-center justify-center z-10 hidden">
+                <h2 class="text-3xl md:text-4xl font-black mb-2 text-white tracking-widest text-center drop-shadow-[0_0_10px_rgba(250,204,21,0.8)] animate-pulse">PAUSED</h2>
+                <p class="text-gray-300 text-xs md:text-sm">Take a breather, Serpent.</p>
+            </div>
+
             <!-- Start/Game Over Overlay -->
             <div id="overlay" class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm flex flex-col items-center justify-start z-10 w-full h-full overflow-y-auto py-6">
                 <div class="flex flex-col items-center justify-center w-full px-4 max-w-sm mx-auto">
@@ -310,8 +335,15 @@
         let speed = 8; 
         let isGameOver = false;
         let isGameRunning = false;
+        let isPaused = false; // NEW STATE
         let lastRenderTime = 0;
         let gamesPlayed = 0;
+
+        // --- NEW: Dynamic Power-Ups & Audio State ---
+        let powerUp = null; // {x, y, spawnTime}
+        let floatingTexts = []; // Array to hold floating text animations
+        let audioCtx;
+        let soundEnabled = true;
 
         // Theme Data Dictionary
         const themeLibrary = {
@@ -381,6 +413,13 @@
         function gameLoop(currentTime) {
             if (isGameOver) return;
             window.requestAnimationFrame(gameLoop);
+
+            // If paused, just keep drawing to maintain the floating animation, but don't update logic
+            if (isPaused) {
+                drawGame();
+                return;
+            }
+
             const secondsSinceLastRender = (currentTime - lastRenderTime) / 1000;
             const currentSpeed = Math.min(speed + Math.floor(score / 5), 25);
             
@@ -421,9 +460,36 @@
             while (snakeParts.length > tailLength) snakeParts.shift();
 
             if (headX === appleX && headY === appleY) appleCollision();
+
+            // --- NEW: Power-Up Logic ---
+            if (powerUp) {
+                // Check expiry (5 seconds)
+                if (performance.now() - powerUp.spawnTime > 5000) {
+                    powerUp = null;
+                } 
+                // Check consumption
+                else if (headX === powerUp.x && headY === powerUp.y) {
+                    playSound('powerup');
+                    score += 5;
+                    document.getElementById('scoreDisplay').innerText = score;
+                    
+                    // Effect: Cut tail length in half!
+                    let cutAmount = Math.floor(snakeParts.length / 2);
+                    snakeParts.splice(0, cutAmount);
+                    tailLength = snakeParts.length + 1;
+                    
+                    floatingTexts.push({x: headX, y: headY, text: "TAIL CUT! +5", color: "#facc15", life: 40});
+                    powerUp = null;
+                }
+            }
+
+            // Update floating animations
+            floatingTexts.forEach(ft => { ft.y -= 0.05; ft.life -= 1; });
+            floatingTexts = floatingTexts.filter(ft => ft.life > 0);
         }
 
         function appleCollision() {
+            playSound('eat'); // NEW: Play eat sound
             score++;
             document.getElementById('scoreDisplay').innerText = score;
             tailLength++;
@@ -442,6 +508,13 @@
             if(emptySpaces.length > 0) {
                 let rand = emptySpaces[Math.floor(Math.random() * emptySpaces.length)];
                 appleX = rand.x; appleY = rand.y;
+
+                // --- NEW: Spawn Power-Up Chance (15%) ---
+                if (!powerUp && Math.random() < 0.15 && emptySpaces.length > 1) {
+                    let puRand = emptySpaces[Math.floor(Math.random() * emptySpaces.length)];
+                    powerUp = { x: puRand.x, y: puRand.y, spawnTime: performance.now() };
+                }
+
             } else {
                 snakeParts = []; tailLength = 2;
                 appleX = Math.floor(tileCount / 2); appleY = Math.floor(tileCount / 2);
@@ -473,18 +546,66 @@
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(currentFoodSymbol, appleX * tileSize + tileSize / 2, appleY * tileSize + tileSize / 2);
 
+            // --- NEW: Draw Power-Up ---
+            if (powerUp) {
+                const time = performance.now() / 200;
+                ctx.shadowBlur = 15 + 5 * Math.sin(time * 5); // Pulsing glow
+                ctx.shadowColor = '#facc15'; 
+                ctx.fillText('🌟', powerUp.x * tileSize + tileSize / 2, powerUp.y * tileSize + tileSize / 2);
+            }
+
             ctx.shadowBlur = 10;
             ctx.shadowColor = currentTheme.snakeBody;
             const rgbBody = hexToRgb(currentTheme.snakeBody);
 
+            const time = performance.now() / 200; // Time variable for organic slithering
+
             for (let i = 0; i < snakeParts.length; i++) {
                 let part = snakeParts[i];
+
+                // Calculate organic wiggle/slither effect
+                let wiggleX = 0;
+                let wiggleY = 0;
+
+                if (isGameRunning) {
+                    let dirX = xVelocity;
+                    let dirY = yVelocity;
+
+                    // Infer segment direction based on the piece ahead of it
+                    if (i > 0) {
+                        dirX = snakeParts[i-1].x - part.x;
+                        dirY = snakeParts[i-1].y - part.y;
+                        // Handle grid wrap-around edge cases
+                        if (Math.abs(dirX) > 1) dirX = dirX > 0 ? -1 : 1;
+                        if (Math.abs(dirY) > 1) dirY = dirY > 0 ? -1 : 1;
+                    }
+
+                    // Apply a sine wave wiggle perpendicular to the movement
+                    const wiggleAmount = (tileSize * 0.15) * Math.sin(time - (i * 0.8));
+                    if (dirX !== 0) {
+                        wiggleY = wiggleAmount; // Moving horizontal, wiggle vertical
+                    } else if (dirY !== 0) {
+                        wiggleX = wiggleAmount; // Moving vertical, wiggle horizontal
+                    } else {
+                        wiggleY = wiggleAmount; // Default stationary hover
+                    }
+                }
+
                 ctx.fillStyle = (i === snakeParts.length - 1) ? currentTheme.snakeHead : `rgba(${rgbBody.r}, ${rgbBody.g}, ${rgbBody.b}, ${(i+1)/snakeParts.length})`;
                 ctx.beginPath();
-                ctx.roundRect(part.x * tileSize + 1, part.y * tileSize + 1, tileSize - 2, tileSize - 2, 3);
+                ctx.roundRect((part.x * tileSize) + 1 + wiggleX, (part.y * tileSize) + 1 + wiggleY, tileSize - 2, tileSize - 2, 3);
                 ctx.fill();
             }
             ctx.shadowBlur = 0;
+
+            // --- NEW: Draw Floating Texts ---
+            ctx.font = `bold ${Math.floor(tileSize * 0.6)}px sans-serif`;
+            floatingTexts.forEach(ft => {
+                ctx.fillStyle = ft.color;
+                ctx.globalAlpha = Math.max(0, ft.life / 40); // Fade out as life decreases
+                ctx.fillText(ft.text, ft.x * tileSize + tileSize / 2, ft.y * tileSize);
+            });
+            ctx.globalAlpha = 1.0; // Reset alpha
         }
 
         // --- Controls ---
@@ -523,6 +644,8 @@
 
         // --- Game Flow & Login Trigger ---
         function startGame() {
+            initAudio(); // NEW: Initialize audio context on first user gesture
+
             headX = Math.floor(tileCount / 2); // Start in center
             headY = Math.floor(tileCount / 2);
             snakeParts = [{x: headX, y: headY}]; 
@@ -536,12 +659,19 @@
             document.getElementById('btn-epic-tale').classList.add('hidden');
             document.getElementById('epic-tale-box').classList.add('hidden');
             document.getElementById('ai-message').innerText = ""; 
+
+            // Show In-Game Controls
+            document.getElementById('in-game-controls').classList.remove('hidden');
+
             isGameRunning = true;
+            isPaused = false;
             lastRenderTime = performance.now();
             window.requestAnimationFrame(gameLoop);
         }
 
         function handleGameOver() {
+            playSound('die'); // NEW: Play death sound
+            
             isGameOver = true; isGameRunning = false;
             gamesPlayed++;
             
@@ -558,6 +688,9 @@
             document.getElementById('overlay').classList.remove('hidden');
             document.getElementById('btn-epic-tale').classList.remove('hidden');
             
+            // Hide In-Game Controls
+            document.getElementById('in-game-controls').classList.add('hidden');
+
             generateGameOverMessage(score);
             generateRunAchievement(score);
 
@@ -633,6 +766,39 @@
             drawGame();
         });
 
+        // --- NEW: Pause & Home Logic ---
+        document.getElementById('btn-pause').addEventListener('click', () => {
+            if (!isGameRunning || isGameOver) return;
+            isPaused = !isPaused;
+            const icon = document.getElementById('icon-pause');
+            if (isPaused) {
+                icon.setAttribute('data-lucide', 'play');
+                document.getElementById('pause-overlay').classList.remove('hidden');
+            } else {
+                icon.setAttribute('data-lucide', 'pause');
+                document.getElementById('pause-overlay').classList.add('hidden');
+                lastRenderTime = performance.now(); // Reset delta so snake doesn't jump ahead
+            }
+            lucide.createIcons();
+        });
+
+        document.getElementById('btn-home').addEventListener('click', () => {
+            if (!isGameRunning) return;
+            isGameRunning = false;
+            isGameOver = true;
+            isPaused = false;
+            
+            // Reset to Menu
+            document.getElementById('pause-overlay').classList.add('hidden');
+            document.getElementById('in-game-controls').classList.add('hidden');
+            document.getElementById('overlay-title').innerText = "NEON SERPENT";
+            document.getElementById('startBtn').innerText = "PLAY NOW";
+            document.getElementById('ai-achievement-box').classList.add('hidden');
+            document.getElementById('btn-epic-tale').classList.add('hidden');
+            document.getElementById('epic-tale-box').classList.add('hidden');
+            document.getElementById('ai-message').innerText = "Run aborted. Ready to slither again?";
+            document.getElementById('overlay').classList.remove('hidden');
+        });
 
         // --- AI Features ---
 
@@ -766,6 +932,104 @@
                 e.target.classList.add('bg-green-500', 'text-gray-950');
             });
         });
+
+        // --- NEW: Retro Audio / SFX Engine ---
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (!soundEnabled || !audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+            if (type === 'eat') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+                gain.gain.setValueAtTime(0.05, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'powerup') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.linearRampToValueAtTime(1200, now + 0.3);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'die') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(50, now + 0.5);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            }
+        }
+
+        document.getElementById('btn-sound').addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('icon-sound');
+            if (soundEnabled) {
+                icon.setAttribute('data-lucide', 'volume-2');
+                if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            } else {
+                icon.setAttribute('data-lucide', 'volume-x');
+            }
+            lucide.createIcons();
+        });
+
+        // --- NEW: PWA Offline Support (Manifest & Service Worker) ---
+        (function initPWA() {
+            // 1. Generate Manifest Inline
+            const manifest = {
+                "name": "Neon Serpent",
+                "short_name": "Serpent",
+                "start_url": ".",
+                "display": "standalone",
+                "background_color": "#030712",
+                "theme_color": "#030712",
+                "icons": [{
+                    "src": "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23030712'/%3E%3Ctext y='70' x='15' font-size='70'%3E🐍%3C/text%3E%3C/svg%3E",
+                    "sizes": "512x512",
+                    "type": "image/svg+xml"
+                }]
+            };
+            const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+            document.getElementById('manifest-link').href = URL.createObjectURL(manifestBlob);
+
+            // 2. Generate and Register Service Worker Inline
+            if ('serviceWorker' in navigator) {
+                const swCode = `
+                    const CACHE_NAME = 'neon-serpent-v1';
+                    self.addEventListener('install', e => {
+                        e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll([
+                            location.href,
+                            'https://cdn.tailwindcss.com',
+                            'https://unpkg.com/lucide@latest'
+                        ])));
+                    });
+                    self.addEventListener('fetch', e => {
+                        e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
+                    });
+                `;
+                const swBlob = new Blob([swCode], {type: 'application/javascript'});
+                navigator.serviceWorker.register(URL.createObjectURL(swBlob))
+                    .then(() => console.log('PWA Service Worker registered.'))
+                    .catch(err => console.warn('PWA SW bypassed in this environment.', err));
+            }
+        })();
 
     </script>
 </body>
