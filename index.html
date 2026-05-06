@@ -21,18 +21,17 @@
             overscroll-behavior: none;
             -webkit-user-select: none;
             user-select: none;
-            perspective: 1000px; /* NEW: Setup 3D space */
+            overflow: hidden;
         }
         
         #game-container {
             box-shadow: 0 0 25px rgba(34, 197, 94, 0.2);
-            /* NEW: Smooth transition for Gyroscope 3D Tilting */
-            transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.1s ease-out;
+            transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.05s linear;
             transform-style: preserve-3d;
             will-change: transform;
         }
 
-        .dpad-btn {
+        .action-btn {
             display: flex;
             align-items: center;
             justify-content: center;
@@ -44,10 +43,21 @@
             touch-action: manipulation;
         }
         
-        .dpad-btn:active {
+        .action-btn:active, .action-btn.active-dash {
             background-color: rgba(34, 197, 94, 0.5);
             border-color: rgba(34, 197, 94, 0.8);
             transform: scale(0.95);
+        }
+        
+        .dash-btn {
+            background-color: rgba(234, 179, 8, 0.2);
+            border-color: rgba(234, 179, 8, 0.5);
+            color: #facc15;
+        }
+        .dash-btn:active, .dash-btn.active-dash {
+            background-color: rgba(234, 179, 8, 0.6);
+            border-color: rgba(234, 179, 8, 0.9);
+            box-shadow: 0 0 15px rgba(234, 179, 8, 0.6);
         }
 
         /* Combo Bar Glow */
@@ -68,10 +78,10 @@
             <span class="text-gray-400 text-xs md:text-sm font-bold uppercase tracking-wider">Score</span>
             <div class="flex items-baseline gap-2">
                 <span id="scoreDisplay" class="text-3xl md:text-4xl font-black text-green-400 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]">0</span>
-                <!-- NEW: Combo Multiplier UI -->
+                <!-- Combo Multiplier UI -->
                 <span id="comboDisplay" class="text-lg font-bold text-yellow-400 hidden animate-pulse">x1</span>
             </div>
-            <!-- NEW: Combo Timer Bar -->
+            <!-- Combo Timer Bar -->
             <div id="combo-bar-bg" class="w-24 h-1.5 bg-gray-800 rounded-full mt-1 hidden overflow-hidden">
                 <div id="combo-bar-fill" class="h-full w-full bg-yellow-400 rounded-full shadow-[0_0_8px_rgba(250,204,21,0.8)]"></div>
             </div>
@@ -156,6 +166,9 @@
                             <option value="Maze">🧱 Maze Runner</option>
                             <option value="Boss">👹 Boss Chase</option>
                             <option value="Portal">🌌 Quantum Portals</option>
+                            <!-- REPLACED BLACK HOLE WITH NEW MODES -->
+                            <option value="Avalanche">☄️ Avalanche</option>
+                            <option value="Shadow">🌑 Night Terror</option>
                         </select>
                     </div>
 
@@ -199,21 +212,30 @@
         </div>
     </main>
 
-    <!-- Mobile Controls (D-Pad) -->
-    <footer class="w-full flex justify-center items-center p-2 pb-6 h-[28%] min-h-[160px]">
-        <div class="grid grid-cols-3 grid-rows-3 gap-2 w-48 h-48 md:w-56 md:h-56">
-            <div class="col-start-2 row-start-1 dpad-btn" id="btn-up">
+    <!-- Mobile Controls (D-Pad & Dash Button) -->
+    <footer class="w-full flex justify-center items-center p-2 pb-6 h-[28%] min-h-[160px] relative">
+        <!-- D-PAD -->
+        <div class="grid grid-cols-3 grid-rows-3 gap-2 w-48 h-48 md:w-56 md:h-56 translate-x-[-30px]">
+            <div class="col-start-2 row-start-1 action-btn" id="btn-up">
                 <i data-lucide="chevron-up" class="w-8 h-8 md:w-10 md:h-10"></i>
             </div>
-            <div class="col-start-1 row-start-2 dpad-btn" id="btn-left">
+            <div class="col-start-1 row-start-2 action-btn" id="btn-left">
                 <i data-lucide="chevron-left" class="w-8 h-8 md:w-10 md:h-10"></i>
             </div>
-            <div class="col-start-3 row-start-2 dpad-btn" id="btn-right">
+            <div class="col-start-3 row-start-2 action-btn" id="btn-right">
                 <i data-lucide="chevron-right" class="w-8 h-8 md:w-10 md:h-10"></i>
             </div>
-            <div class="col-start-2 row-start-3 dpad-btn" id="btn-down">
+            <div class="col-start-2 row-start-3 action-btn" id="btn-down">
                 <i data-lucide="chevron-down" class="w-8 h-8 md:w-10 md:h-10"></i>
             </div>
+        </div>
+
+        <!-- DASH BUTTON -->
+        <div class="absolute right-8 md:right-1/4 top-1/2 transform -translate-y-1/2">
+            <button id="btn-dash" class="action-btn dash-btn w-16 h-16 md:w-20 md:h-20 rounded-full flex flex-col items-center justify-center">
+                <i data-lucide="zap" class="w-6 h-6 md:w-8 md:h-8 mb-1"></i>
+                <span class="text-[9px] md:text-[10px] font-black uppercase">Dash</span>
+            </button>
         </div>
     </footer>
 
@@ -363,6 +385,7 @@
         let isPaused = false;
         let lastRenderTime = 0;
         let gamesPlayed = 0;
+        let isDashing = false; 
 
         // Dynamic Power-Ups & Audio State
         let powerUp = null; 
@@ -370,7 +393,7 @@
         let audioCtx;
         let soundEnabled = true;
 
-        // --- NEW: Screen Shake Engine ---
+        // Screen Shake Engine
         let screenShakeTime = 0;
         let screenShakeMagnitude = 0;
 
@@ -379,32 +402,55 @@
             screenShakeTime = performance.now() + duration;
         }
 
-        // --- NEW: Adrenaline Combo System ---
+        // Adrenaline Combo System
         let comboMultiplier = 1;
         let comboTimeLeft = 0;
-        const maxComboTime = 4000; // 4 seconds to chain
+        const maxComboTime = 4000; 
 
-        // --- Game Modes State ---
+        // Game Modes State
         let currentGameMode = "Classic";
         let walls = [];
         let boss = null;
         let portals = [];
+        let meteors = []; // NEW: For Avalanche mode
         let isTimeFrozen = false;
         let timeFreezeStart = 0;
         let lastPortalMoveTime = 0;
 
-        // Animated Background Particles
+        // --- UPDATED: Theme-Specific Particle Physics Engine (Fixed Scaling) ---
         let bgParticles = [];
-        const numParticles = 25;
-        for(let i=0; i<numParticles; i++) {
-            bgParticles.push({
-                x: Math.random() * tileCount,
-                y: Math.random() * tileCount,
-                vx: (Math.random() - 0.5) * 0.05,
-                vy: (Math.random() - 0.5) * 0.05,
-                size: Math.random() * 1.5 + 0.5,
-                alpha: Math.random() * 0.4 + 0.1
-            });
+        
+        function initParticles(themeName) {
+            bgParticles = [];
+            const count = themeName === 'Matrix' ? 40 : (themeName === 'Cyberpunk' ? 30 : 20);
+            for(let i=0; i<count; i++) {
+                let vx = 0, vy = 0, size = Math.random() * 0.15 + 0.05, len = 0;
+                
+                if (themeName === 'Cyberpunk') {
+                    vx = (Math.random() + 0.5) * 0.6; // Fast right
+                    vy = 0;
+                    len = Math.random() * 3 + 2; // Long streaks
+                } else if (themeName === 'Matrix') {
+                    vx = 0;
+                    vy = (Math.random() + 0.5) * 0.4; // Fast down
+                    len = Math.random() * 2 + 1;
+                } else if (themeName === 'Ocean') {
+                    vx = (Math.random() - 0.5) * 0.03;
+                    vy = -(Math.random() * 0.06 + 0.02); // Float up
+                    size = Math.random() * 0.2 + 0.1; // Larger bubbles
+                } else {
+                    vx = (Math.random() - 0.5) * 0.03;
+                    vy = (Math.random() - 0.5) * 0.03;
+                }
+
+                bgParticles.push({
+                    x: Math.random() * tileCount,
+                    y: Math.random() * tileCount,
+                    vx: vx, vy: vy, size: size, len: len,
+                    alpha: Math.random() * 0.6 + 0.2, // Boosted opacity
+                    baseX: Math.random() * Math.PI * 2 
+                });
+            }
         }
 
         // Theme Data Dictionary
@@ -418,9 +464,11 @@
         };
 
         let currentThemeName = "Neon Retro";
-        let currentTheme = { bg: '#111827', grid: '#1f2937', snakeHead: '#4ade80', snakeBody: '#22c55e' };
+        let currentTheme = themeLibrary["Neon Retro"];
         let foodSymbols = themeLibrary["Neon Retro"].foodEmojis;
         let currentFoodSymbol = '🍎';
+        
+        initParticles(currentThemeName);
 
         const apiKey = ""; 
 
@@ -453,36 +501,34 @@
             }
         }
 
-        // --- NEW: 3D Gyroscope & Mouse Parallax ---
+        // --- 3D Gyroscope & Mouse Parallax ---
         function apply3DTilt(x, y) {
             const container = document.getElementById('game-container');
-            container.style.transform = `rotateY(${x}deg) rotateX(${-y}deg)`;
+            container.style.transform = `perspective(1000px) rotateY(${x}deg) rotateX(${-y}deg)`;
         }
 
-        // Mouse Fallback for PC
         document.addEventListener('mousemove', (e) => {
-            if (!isGameRunning || isPaused) {
-                apply3DTilt(0, 0);
-                return;
-            }
-            let x = (e.clientX / window.innerWidth - 0.5) * 15; // Max 7.5 deg tilt
-            let y = (e.clientY / window.innerHeight - 0.5) * 15;
+            if (!isGameRunning || isPaused) return;
+            let x = (e.clientX / window.innerWidth - 0.5) * 20; 
+            let y = (e.clientY / window.innerHeight - 0.5) * 20;
             apply3DTilt(x, y);
         });
 
-        // Gyroscope for Mobile
-        window.addEventListener('deviceorientation', (e) => {
+        function handleOrientation(e) {
             if (!isGameRunning || isPaused) return;
-            // Clamp values and dampen
-            let x = Math.min(Math.max(e.gamma, -20), 20) / 2; // Left/Right
-            let y = Math.min(Math.max(e.beta - 45, -20), 20) / 2; // Front/Back (offset 45deg holding angle)
+            let x = Math.min(Math.max(e.gamma, -25), 25) / 1.5; 
+            let y = Math.min(Math.max(e.beta - 45, -25), 25) / 1.5; 
             if (e.gamma !== null) apply3DTilt(x, y);
-        });
+        }
+        
+        window.addEventListener('deviceorientation', handleOrientation);
 
-        // Request Gyro Permission for iOS 13+ on PLAY button
         function requestGyroPermission() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission().catch(console.error);
+                DeviceOrientationEvent.requestPermission()
+                .then(permissionState => {
+                    if (permissionState === 'granted') window.addEventListener('deviceorientation', handleOrientation);
+                }).catch(console.error);
             }
         }
 
@@ -515,16 +561,16 @@
 
             const delta = currentTime - lastRenderTime;
 
-            // Update Combo Timer
             if (comboTimeLeft > 0) {
-                comboTimeLeft -= delta;
-                document.getElementById('combo-bar-fill').style.width = `${(comboTimeLeft / maxComboTime) * 100}%`;
+                comboTimeLeft -= (isDashing ? delta * 2 : delta);
                 
-                // Color change based on multiplier
+                let pct = (comboTimeLeft / maxComboTime) * 100;
+                document.getElementById('combo-bar-fill').style.width = `${Math.max(0, pct)}%`;
+                
                 const fill = document.getElementById('combo-bar-fill');
-                if (comboMultiplier >= 5) fill.style.backgroundColor = '#ec4899'; // Pink Overdrive
-                else if (comboMultiplier >= 3) fill.style.backgroundColor = '#f97316'; // Orange
-                else fill.style.backgroundColor = '#facc15'; // Yellow
+                if (comboMultiplier >= 5) fill.style.backgroundColor = '#ec4899'; 
+                else if (comboMultiplier >= 3) fill.style.backgroundColor = '#f97316'; 
+                else fill.style.backgroundColor = '#facc15'; 
                 
                 if (comboTimeLeft <= 0) {
                     comboMultiplier = 1;
@@ -534,7 +580,9 @@
             }
 
             const secondsSinceLastRender = delta / 1000;
-            const currentSpeed = Math.min(speed + Math.floor(score / 5), 25);
+            let targetSpeed = speed + Math.floor(score / 5);
+            if (isDashing) targetSpeed *= 2.5; 
+            const currentSpeed = Math.min(targetSpeed, 35); 
             
             if (secondsSinceLastRender < 1 / currentSpeed) return;
             lastRenderTime = currentTime;
@@ -555,11 +603,35 @@
             headX += xVelocity;
             headY += yVelocity;
 
-            // --- Portal Wall Boundaries ---
             if (headX < 0) headX = tileCount - 1; 
             if (headX >= tileCount) headX = 0;
             if (headY < 0) headY = tileCount - 1;
             if (headY >= tileCount) headY = 0;
+
+            // GAME MODE: Avalanche (Meteor Dodge)
+            if (currentGameMode === 'Avalanche' && isGameRunning) {
+                if (Math.random() < 0.06 + (score * 0.002)) {
+                    meteors.push({
+                        x: Math.random() * tileCount, 
+                        y: -2, 
+                        vy: Math.random() * 0.2 + 0.15,
+                        size: Math.random() * 0.6 + 0.3
+                    });
+                }
+                meteors.forEach(m => m.y += m.vy);
+                meteors = meteors.filter(m => m.y < tileCount + 2);
+                
+                meteors.forEach(m => {
+                    if (!isGameRunning) return;
+                    let distToHead = Math.hypot(headX - m.x, headY - m.y);
+                    if (distToHead < m.size + 0.4) { handleGameOver(); return; }
+                    
+                    for(let sp of snakeParts) {
+                        let distToBody = Math.hypot(sp.x - m.x, sp.y - m.y);
+                        if (distToBody < m.size + 0.4) { handleGameOver(); return; }
+                    }
+                });
+            }
 
             // GAME MODE: Quantum Portals Dynamic Shifting
             if (currentGameMode === 'Portal' && portals.length === 2 && isGameRunning) {
@@ -600,7 +672,6 @@
                     let rb = emptyForBoss[Math.floor(Math.random() * emptyForBoss.length)];
                     bx = rb.x; by = rb.y;
                 }
-                // NEW: moveAccumulator and 0.4 exact ratio (Boss is 40% speed of player)
                 boss = { x: bx, y: by, parts: [{x: bx, y: by}], length: 4, moveAccumulator: 0, speedRatio: 0.4 };
                 floatingTexts.push({x: tileCount/2, y: tileCount/2, text: "WARNING: BOSS INBOUND", color: "#ef4444", life: 60});
                 triggerScreenShake(12, 600); 
@@ -635,12 +706,9 @@
             // GAME MODE: Boss Intelligence & Movement
             if (currentGameMode === 'Boss' && boss && isGameRunning) {
                 if (!isTimeFrozen) {
-                    // Update boss position strictly based on the 40% speed ratio
                     boss.moveAccumulator += boss.speedRatio;
-                    
                     if (boss.moveAccumulator >= 1) {
-                        boss.moveAccumulator -= 1; // Consume 1 full move unit
-                        
+                        boss.moveAccumulator -= 1; 
                         let dx = headX - boss.x;
                         let dy = headY - boss.y;
 
@@ -655,12 +723,10 @@
                     }
                 }
 
-                // Boss Collisions (Player head hits boss body = GAME OVER)
                 for(let bp of boss.parts) {
                     if (headX === bp.x && headY === bp.y) { handleGameOver(); return; }
                 }
                 
-                // NEW: Boss Combat! If Boss Head hits Player Body, Boss dies!
                 let bossKilled = false;
                 for(let sp of snakeParts) {
                     if (boss.x === sp.x && boss.y === sp.y) { 
@@ -670,14 +736,13 @@
                 }
 
                 if (bossKilled) {
-                    score += 25; // Massive reward
+                    score += 25; 
                     document.getElementById('scoreDisplay').innerText = score;
                     playSound('powerup');
                     triggerScreenShake(15, 600);
                     floatingTexts.push({x: boss.x, y: boss.y, text: "BOSS SHATTERED! +25", color: "#ec4899", life: 60});
-                    boss = null; // Kill boss
+                    boss = null; 
                 } else {
-                    // BOSS INTELLIGENCE: The Boss competes for your food!
                     if (boss && boss.x === appleX && boss.y === appleY) {
                         boss.length += 2; 
                         floatingTexts.push({x: boss.x, y: boss.y, text: "BOSS ATE IT!", color: "#ef4444", life: 40});
@@ -718,10 +783,17 @@
             floatingTexts.forEach(ft => { ft.y -= 0.05; ft.life -= 1; });
             floatingTexts = floatingTexts.filter(ft => ft.life > 0);
 
+            // Update Particle Physics based on Theme
             if (!isTimeFrozen) {
+                const time = performance.now() / 1000;
                 bgParticles.forEach(p => {
                     p.x += p.vx;
                     p.y += p.vy;
+                    
+                    if (currentThemeName === 'Ocean') {
+                        p.x += Math.sin(time + p.baseX) * 0.02; // Bubble wobble
+                    }
+
                     if (p.x < 0) p.x = tileCount;
                     if (p.x > tileCount) p.x = 0;
                     if (p.y < 0) p.y = tileCount;
@@ -739,6 +811,7 @@
                     if (currentGameMode === 'Maze') for(let w of walls) if(w.x === x && w.y === y) occupied = true;
                     if (currentGameMode === 'Portal') for(let p of portals) if(p.x === x && p.y === y) occupied = true;
                     if (currentGameMode === 'Boss' && boss) for(let bp of boss.parts) if(bp.x === x && bp.y === y) occupied = true;
+                    
                     if(!occupied) emptySpaces.push({x, y});
                 }
             }
@@ -760,14 +833,13 @@
                 }
             } else {
                 snakeParts = []; tailLength = 2;
-                appleX = Math.floor(tileCount / 2); appleY = Math.floor(tileCount / 2);
+                appleX = 1; appleY = 1;
             }
         }
 
         function appleCollision() {
             playSound('eat'); 
             
-            // --- NEW: Adrenaline Combo System ---
             comboMultiplier = Math.min(5, comboMultiplier + 1);
             comboTimeLeft = maxComboTime;
             
@@ -782,11 +854,9 @@
             document.getElementById('scoreDisplay').innerText = score;
             tailLength++;
             
-            if (comboMultiplier >= 5) triggerScreenShake(2, 100); // Mini thud on overdrive
-            
+            if (comboMultiplier >= 5) triggerScreenShake(2, 100); 
             if (navigator.vibrate) navigator.vibrate(50);
             
-            // GAME MODE: Maze Generation
             if (currentGameMode === 'Maze' && score % 3 === 0) {
                 let emptyForWalls = getEmptySpaces();
                 for(let i=0; i<2; i++) {
@@ -803,7 +873,6 @@
         }
 
         function drawGame() {
-            // Apply Screen Shake to Canvas Context
             ctx.save();
             if (screenShakeTime > performance.now()) {
                 let dx = (Math.random() - 0.5) * screenShakeMagnitude;
@@ -815,12 +884,11 @@
 
             const bgGrad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width * 0.1, canvas.width/2, canvas.height/2, canvas.width);
             
-            // If in 5x Combo Overdrive, make the background pulse brilliantly!
             if (comboMultiplier >= 5 && isGameRunning) {
                  const timePulse = performance.now() / 100;
                  ctx.shadowBlur = 30 + 10 * Math.sin(timePulse);
                  ctx.shadowColor = currentTheme.snakeHead;
-                 bgGrad.addColorStop(0, currentTheme.snakeHead + "66"); // Brighten core
+                 bgGrad.addColorStop(0, currentTheme.snakeHead + "66"); 
             } else {
                  bgGrad.addColorStop(0, currentTheme.bg);
             }
@@ -829,14 +897,39 @@
             ctx.fillStyle = bgGrad;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+            // --- Theme Specific Particle Rendering (FIXED SCALING) ---
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = currentTheme.snakeHead;
             ctx.fillStyle = currentTheme.snakeHead;
+            ctx.strokeStyle = currentTheme.snakeHead;
+            
             bgParticles.forEach(p => {
                 ctx.globalAlpha = p.alpha;
-                ctx.beginPath();
-                ctx.arc(p.x * tileSize, p.y * tileSize, p.size, 0, Math.PI * 2);
-                ctx.fill();
+                if (p.len > 0) {
+                    ctx.lineWidth = p.size * tileSize; // properly scaled relative to grid
+                    ctx.beginPath();
+                    if (currentThemeName === 'Cyberpunk') { 
+                        ctx.moveTo(p.x * tileSize, p.y * tileSize);
+                        ctx.lineTo((p.x - p.len) * tileSize, p.y * tileSize);
+                    } else if (currentThemeName === 'Matrix') { 
+                        ctx.moveTo(p.x * tileSize, p.y * tileSize);
+                        ctx.lineTo(p.x * tileSize, (p.y - p.len) * tileSize);
+                    }
+                    ctx.stroke();
+                } else {
+                    ctx.beginPath();
+                    if (currentThemeName === 'Ocean') {
+                        ctx.lineWidth = 2; // Fixed pixel width for delicate bubbles
+                        ctx.arc(p.x * tileSize, p.y * tileSize, p.size * tileSize * 1.2, 0, Math.PI * 2);
+                        ctx.stroke();
+                    } else {
+                        ctx.arc(p.x * tileSize, p.y * tileSize, p.size * tileSize, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
             });
             ctx.globalAlpha = 1.0; 
+            ctx.shadowBlur = 0;
 
             // Glowing Edge Boundary
             ctx.lineWidth = 8;
@@ -856,9 +949,30 @@
             }
             ctx.globalAlpha = 1.0;
 
+            // GAME MODE: Draw Avalanche Meteors
+            if (currentGameMode === 'Avalanche' && meteors.length > 0) {
+                ctx.fillStyle = '#ef4444'; 
+                ctx.shadowColor = '#f87171';
+                ctx.shadowBlur = 15;
+                meteors.forEach(m => {
+                    ctx.beginPath();
+                    ctx.arc(m.x * tileSize, m.y * tileSize, m.size * tileSize, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Meteor Trail
+                    ctx.beginPath();
+                    ctx.moveTo(m.x * tileSize, m.y * tileSize);
+                    ctx.lineTo(m.x * tileSize, (m.y - m.vy * 4) * tileSize);
+                    ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+                    ctx.lineWidth = m.size * tileSize * 1.5;
+                    ctx.stroke();
+                });
+                ctx.shadowBlur = 0;
+            }
+
             // GAME MODE: Draw Portals
             if (currentGameMode === 'Portal' && portals.length === 2) {
-                const time = isPaused || isTimeFrozen ? 0 : performance.now() / 200;
+                const time = isTimeFrozen ? 0 : performance.now() / 200;
                 portals.forEach((p, index) => {
                     ctx.strokeStyle = p.color;
                     ctx.lineWidth = 3;
@@ -884,12 +998,11 @@
                 ctx.shadowBlur = 0;
             }
 
-            // Food
+            // Food (Stays in the dark)
             ctx.shadowBlur = 0;
             ctx.font = `${Math.floor(tileSize * 0.8)}px sans-serif`;
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             
-            // Overdrive Food Shake effect
             let foodOx = 0, foodOy = 0;
             if (comboMultiplier >= 5) {
                 foodOx = (Math.random() - 0.5) * 4;
@@ -899,8 +1012,15 @@
 
             // Power-Up
             if (powerUp) {
-                const time = isPaused ? 0 : performance.now() / 200;
-                ctx.shadowBlur = 15 + 5 * Math.sin(time * 5); 
+                const time = performance.now() / 200;
+                const timeSinceSpawn = performance.now() - powerUp.spawnTime;
+                
+                // Pulse for 1 second, then go dark
+                if (timeSinceSpawn < 1000) {
+                    ctx.shadowBlur = 15 + 5 * Math.sin(time * 5); 
+                } else {
+                    ctx.shadowBlur = 0; 
+                }
                 
                 if (powerUp.type === 'freeze') {
                     ctx.shadowColor = '#38bdf8'; 
@@ -933,7 +1053,7 @@
             ctx.shadowColor = currentTheme.snakeBody;
             const rgbBody = hexToRgb(currentTheme.snakeBody);
 
-            const time = isPaused ? 0 : performance.now() / 200; 
+            const time = performance.now() / 200; 
 
             for (let i = 0; i < snakeParts.length; i++) {
                 let part = snakeParts[i];
@@ -951,7 +1071,7 @@
                         if (Math.abs(dirY) > 1) dirY = dirY > 0 ? -1 : 1;
                     }
 
-                    const wiggleAmount = (tileSize * 0.15) * Math.sin(time - (i * 0.8));
+                    const wiggleAmount = (tileSize * (isDashing ? 0.25 : 0.15)) * Math.sin(time - (i * (isDashing ? 1.2 : 0.8)));
                     if (dirX !== 0) {
                         wiggleY = wiggleAmount; 
                     } else if (dirY !== 0) {
@@ -973,9 +1093,12 @@
             floatingTexts.forEach(ft => {
                 ctx.fillStyle = ft.color;
                 ctx.globalAlpha = Math.max(0, ft.life / 40);
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = ft.color;
                 ctx.fillText(ft.text, ft.x * tileSize + tileSize / 2, ft.y * tileSize);
             });
             ctx.globalAlpha = 1.0; 
+            ctx.shadowBlur = 0;
 
             ctx.restore();
         }
@@ -997,6 +1120,19 @@
             if (e.key === 'ArrowDown' || e.key === 's') changeDirection('down');
             if (e.key === 'ArrowLeft' || e.key === 'a') changeDirection('left');
             if (e.key === 'ArrowRight' || e.key === 'd') changeDirection('right');
+            
+            if (e.code === 'Space') {
+                e.preventDefault();
+                isDashing = true;
+                document.getElementById('btn-dash').classList.add('active-dash');
+            }
+        });
+
+        document.body.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                isDashing = false;
+                document.getElementById('btn-dash').classList.remove('active-dash');
+            }
         });
 
         ['up','down','left','right'].forEach(dir => {
@@ -1004,6 +1140,13 @@
             btn.addEventListener('touchstart', (e) => { e.preventDefault(); changeDirection(dir); }, {passive: false});
             btn.addEventListener('mousedown', () => changeDirection(dir));
         });
+
+        const btnDash = document.getElementById('btn-dash');
+        btnDash.addEventListener('touchstart', (e) => { e.preventDefault(); isDashing = true; btnDash.classList.add('active-dash'); }, {passive: false});
+        btnDash.addEventListener('touchend', (e) => { e.preventDefault(); isDashing = false; btnDash.classList.remove('active-dash'); }, {passive: false});
+        btnDash.addEventListener('mousedown', () => { isDashing = true; btnDash.classList.add('active-dash'); });
+        btnDash.addEventListener('mouseup', () => { isDashing = false; btnDash.classList.remove('active-dash'); });
+        btnDash.addEventListener('mouseleave', () => { isDashing = false; btnDash.classList.remove('active-dash'); });
 
         let tStartX = 0, tStartY = 0;
         const gC = document.getElementById('game-container');
@@ -1021,28 +1164,30 @@
 
         // --- Game Flow & Login Trigger ---
         function startGame() {
-            requestGyroPermission(); // Start listening to phone tilt
+            requestGyroPermission(); 
             initAudio(); 
 
             headX = Math.floor(tileCount / 2); 
             headY = Math.floor(tileCount / 2);
+
             snakeParts = [{x: headX, y: headY}]; 
             tailLength = 2;
             appleX = 15; appleY = 10; xVelocity = 0; yVelocity = 0; inputQueue = ['right'];
             score = 0; document.getElementById('scoreDisplay').innerText = score;
             speed = baseSpeed; isGameOver = false;
             
-            // Combo System Resets
             comboMultiplier = 1;
             comboTimeLeft = 0;
             document.getElementById('comboDisplay').classList.add('hidden');
             document.getElementById('combo-bar-bg').classList.add('hidden');
 
-            // Mode State Resets
             walls = [];
             boss = null;
             portals = [];
+            meteors = [];
             isTimeFrozen = false;
+            isDashing = false;
+
             if (currentGameMode === 'Portal') {
                 portals = [
                     {x: 3, y: 3, color: '#a855f7'}, 
@@ -1058,7 +1203,7 @@
             document.getElementById('ai-message').innerText = ""; 
 
             document.getElementById('in-game-controls').classList.remove('hidden');
-            apply3DTilt(0,0); // reset tilt
+            apply3DTilt(0,0); 
 
             isGameRunning = true;
             isPaused = false;
@@ -1069,10 +1214,12 @@
         function handleGameOver() {
             playSound('die'); 
             triggerScreenShake(15, 800); 
+            isDashing = false;
+            document.getElementById('btn-dash').classList.remove('active-dash');
             
             isGameOver = true; isGameRunning = false;
             gamesPlayed++;
-            apply3DTilt(0,0); // Reset tilt when dead
+            apply3DTilt(0,0); 
             
             if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
             
@@ -1158,6 +1305,8 @@
             currentFoodSymbol = foodSymbols[0];
             
             document.getElementById('game-container').style.boxShadow = `0 0 25px ${t.snakeHead}33`; 
+            
+            initParticles(currentThemeName); 
             drawGame();
         });
 
@@ -1169,7 +1318,7 @@
             if (isPaused) {
                 icon.setAttribute('data-lucide', 'play');
                 document.getElementById('pause-overlay').classList.remove('hidden');
-                apply3DTilt(0,0); // flatten board when paused
+                apply3DTilt(0,0); 
             } else {
                 icon.setAttribute('data-lucide', 'pause');
                 document.getElementById('pause-overlay').classList.add('hidden');
