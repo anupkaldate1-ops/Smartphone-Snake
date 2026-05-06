@@ -166,7 +166,6 @@
                             <option value="Maze">🧱 Maze Runner</option>
                             <option value="Boss">👹 Boss Chase</option>
                             <option value="Portal">🌌 Quantum Portals</option>
-                            <!-- REPLACED BLACK HOLE WITH NEW MODES -->
                             <option value="Avalanche">☄️ Avalanche</option>
                             <option value="Shadow">🌑 Night Terror</option>
                         </select>
@@ -384,6 +383,7 @@
         let isGameRunning = false;
         let isPaused = false;
         let lastRenderTime = 0;
+        let lastFrameTime = 0;
         let gamesPlayed = 0;
         let isDashing = false; 
 
@@ -412,12 +412,12 @@
         let walls = [];
         let boss = null;
         let portals = [];
-        let meteors = []; // NEW: For Avalanche mode
+        let meteors = []; 
         let isTimeFrozen = false;
         let timeFreezeStart = 0;
         let lastPortalMoveTime = 0;
 
-        // --- UPDATED: Theme-Specific Particle Physics Engine (Fixed Scaling) ---
+        // Theme-Specific Particle Physics Engine
         let bgParticles = [];
         
         function initParticles(themeName) {
@@ -427,17 +427,17 @@
                 let vx = 0, vy = 0, size = Math.random() * 0.15 + 0.05, len = 0;
                 
                 if (themeName === 'Cyberpunk') {
-                    vx = (Math.random() + 0.5) * 0.6; // Fast right
+                    vx = (Math.random() + 0.5) * 0.6; 
                     vy = 0;
-                    len = Math.random() * 3 + 2; // Long streaks
+                    len = Math.random() * 3 + 2; 
                 } else if (themeName === 'Matrix') {
                     vx = 0;
-                    vy = (Math.random() + 0.5) * 0.4; // Fast down
+                    vy = (Math.random() + 0.5) * 0.4; 
                     len = Math.random() * 2 + 1;
                 } else if (themeName === 'Ocean') {
                     vx = (Math.random() - 0.5) * 0.03;
-                    vy = -(Math.random() * 0.06 + 0.02); // Float up
-                    size = Math.random() * 0.2 + 0.1; // Larger bubbles
+                    vy = -(Math.random() * 0.06 + 0.02); 
+                    size = Math.random() * 0.2 + 0.1; 
                 } else {
                     vx = (Math.random() - 0.5) * 0.03;
                     vy = (Math.random() - 0.5) * 0.03;
@@ -447,7 +447,7 @@
                     x: Math.random() * tileCount,
                     y: Math.random() * tileCount,
                     vx: vx, vy: vy, size: size, len: len,
-                    alpha: Math.random() * 0.6 + 0.2, // Boosted opacity
+                    alpha: Math.random() * 0.6 + 0.2,
                     baseX: Math.random() * Math.PI * 2 
                 });
             }
@@ -553,6 +553,30 @@
         function gameLoop(currentTime) {
             if (isGameOver) return;
             window.requestAnimationFrame(gameLoop);
+
+            // Compute frame delta for smooth animations that run even when paused
+            let frameDelta = currentTime - (lastFrameTime || currentTime);
+            if (frameDelta > 100) frameDelta = 16.66; // cap delta to prevent massive jumps when returning to tab
+            lastFrameTime = currentTime;
+
+            // Animate Particles smoothly every frame (even if paused or frozen)
+            if (!isTimeFrozen) {
+                const time = currentTime / 1000;
+                const timeScale = frameDelta / 16.66; // Normalize to 60fps
+                bgParticles.forEach(p => {
+                    p.x += p.vx * timeScale;
+                    p.y += p.vy * timeScale;
+                    
+                    if (currentThemeName === 'Ocean') {
+                        p.x += Math.sin(time + p.baseX) * 0.02 * timeScale; // Bubble wobble
+                    }
+
+                    if (p.x < 0) p.x = tileCount;
+                    if (p.x > tileCount) p.x = 0;
+                    if (p.y < 0) p.y = tileCount;
+                    if (p.y > tileCount) p.y = 0;
+                });
+            }
 
             if (isPaused) {
                 drawGame();
@@ -782,24 +806,6 @@
 
             floatingTexts.forEach(ft => { ft.y -= 0.05; ft.life -= 1; });
             floatingTexts = floatingTexts.filter(ft => ft.life > 0);
-
-            // Update Particle Physics based on Theme
-            if (!isTimeFrozen) {
-                const time = performance.now() / 1000;
-                bgParticles.forEach(p => {
-                    p.x += p.vx;
-                    p.y += p.vy;
-                    
-                    if (currentThemeName === 'Ocean') {
-                        p.x += Math.sin(time + p.baseX) * 0.02; // Bubble wobble
-                    }
-
-                    if (p.x < 0) p.x = tileCount;
-                    if (p.x > tileCount) p.x = 0;
-                    if (p.y < 0) p.y = tileCount;
-                    if (p.y > tileCount) p.y = 0;
-                });
-            }
         }
 
         function getEmptySpaces() {
@@ -897,7 +903,7 @@
             ctx.fillStyle = bgGrad;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // --- Theme Specific Particle Rendering (FIXED SCALING) ---
+            // --- Theme Specific Particle Rendering ---
             ctx.shadowBlur = 8;
             ctx.shadowColor = currentTheme.snakeHead;
             ctx.fillStyle = currentTheme.snakeHead;
@@ -906,7 +912,7 @@
             bgParticles.forEach(p => {
                 ctx.globalAlpha = p.alpha;
                 if (p.len > 0) {
-                    ctx.lineWidth = p.size * tileSize; // properly scaled relative to grid
+                    ctx.lineWidth = p.size * tileSize; 
                     ctx.beginPath();
                     if (currentThemeName === 'Cyberpunk') { 
                         ctx.moveTo(p.x * tileSize, p.y * tileSize);
@@ -919,7 +925,7 @@
                 } else {
                     ctx.beginPath();
                     if (currentThemeName === 'Ocean') {
-                        ctx.lineWidth = 2; // Fixed pixel width for delicate bubbles
+                        ctx.lineWidth = 2; 
                         ctx.arc(p.x * tileSize, p.y * tileSize, p.size * tileSize * 1.2, 0, Math.PI * 2);
                         ctx.stroke();
                     } else {
@@ -972,7 +978,7 @@
 
             // GAME MODE: Draw Portals
             if (currentGameMode === 'Portal' && portals.length === 2) {
-                const time = isTimeFrozen ? 0 : performance.now() / 200;
+                const time = performance.now() / 200;
                 portals.forEach((p, index) => {
                     ctx.strokeStyle = p.color;
                     ctx.lineWidth = 3;
@@ -998,7 +1004,7 @@
                 ctx.shadowBlur = 0;
             }
 
-            // Food (Stays in the dark)
+            // Base Food (No shadow blur, gets hidden by darkness)
             ctx.shadowBlur = 0;
             ctx.font = `${Math.floor(tileSize * 0.8)}px sans-serif`;
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1010,27 +1016,12 @@
             }
             ctx.fillText(currentFoodSymbol, appleX * tileSize + tileSize / 2 + foodOx, appleY * tileSize + tileSize / 2 + foodOy);
 
-            // Power-Up
+            // Base Power-Up Layer (No shadow blur, gets hidden by darkness)
             if (powerUp) {
-                const time = performance.now() / 200;
-                const timeSinceSpawn = performance.now() - powerUp.spawnTime;
-                
-                // Pulse for 1 second, then go dark
-                if (timeSinceSpawn < 1000) {
-                    ctx.shadowBlur = 15 + 5 * Math.sin(time * 5); 
-                } else {
-                    ctx.shadowBlur = 0; 
-                }
-                
-                if (powerUp.type === 'freeze') {
-                    ctx.shadowColor = '#38bdf8'; 
-                    ctx.fillText('⏳', powerUp.x * tileSize + tileSize / 2, powerUp.y * tileSize + tileSize / 2);
-                } else {
-                    ctx.shadowColor = '#facc15'; 
-                    ctx.fillText('🌟', powerUp.x * tileSize + tileSize / 2, powerUp.y * tileSize + tileSize / 2);
-                }
+                ctx.shadowBlur = 0; 
+                ctx.fillStyle = powerUp.type === 'freeze' ? '#38bdf8' : '#facc15';
+                ctx.fillText(powerUp.type === 'freeze' ? '⏳' : '🌟', powerUp.x * tileSize + tileSize / 2, powerUp.y * tileSize + tileSize / 2);
             }
-            ctx.shadowBlur = 0;
 
             // GAME MODE: Draw Boss
             if (currentGameMode === 'Boss' && boss) {
@@ -1060,7 +1051,7 @@
                 let wiggleX = 0;
                 let wiggleY = 0;
 
-                if (isGameRunning && !isPaused) {
+                if (isGameRunning) {
                     let dirX = xVelocity;
                     let dirY = yVelocity;
 
@@ -1088,7 +1079,34 @@
             }
             ctx.shadowBlur = 0;
 
-            // Draw Floating Texts
+            // --- GAME MODE: Night Terror (Spotlight Mask) ---
+            if (currentGameMode === 'Shadow' && isGameRunning && !isGameOver) {
+                let spotRadius = isDashing ? tileSize * 2.5 : tileSize * 5; // Dashing shrinks vision
+                const spotGrad = ctx.createRadialGradient(
+                    headX * tileSize + tileSize/2, headY * tileSize + tileSize/2, spotRadius * 0.2,
+                    headX * tileSize + tileSize/2, headY * tileSize + tileSize/2, spotRadius
+                );
+                spotGrad.addColorStop(0, 'rgba(2, 2, 5, 0)');     
+                spotGrad.addColorStop(1, 'rgba(2, 2, 5, 0.98)');  
+                
+                ctx.fillStyle = spotGrad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // 1-Second Power-Up Pulse (Renders on top of darkness mask so player definitely sees it spawn)
+            if (powerUp) {
+                const timeSinceSpawn = performance.now() - powerUp.spawnTime;
+                if (timeSinceSpawn < 1000) {
+                    const pulseTime = performance.now() / 200;
+                    ctx.shadowBlur = 20 + 10 * Math.sin(pulseTime * 5); 
+                    ctx.shadowColor = powerUp.type === 'freeze' ? '#38bdf8' : '#facc15';
+                    ctx.fillStyle = ctx.shadowColor;
+                    ctx.fillText(powerUp.type === 'freeze' ? '⏳' : '🌟', powerUp.x * tileSize + tileSize / 2, powerUp.y * tileSize + tileSize / 2);
+                    ctx.shadowBlur = 0;
+                }
+            }
+
+            // Draw Floating Texts (Renders on top of darkness so it's always readable)
             ctx.font = `bold ${Math.floor(tileSize * 0.6)}px sans-serif`;
             floatingTexts.forEach(ft => {
                 ctx.fillStyle = ft.color;
@@ -1208,6 +1226,7 @@
             isGameRunning = true;
             isPaused = false;
             lastRenderTime = performance.now();
+            lastFrameTime = performance.now(); // Reset delta timer
             window.requestAnimationFrame(gameLoop);
         }
 
@@ -1323,6 +1342,7 @@
                 icon.setAttribute('data-lucide', 'pause');
                 document.getElementById('pause-overlay').classList.add('hidden');
                 lastRenderTime = performance.now(); 
+                lastFrameTime = performance.now(); // prevent delta jump
             }
             lucide.createIcons();
         });
