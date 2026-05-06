@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#030712">
     <meta name="mobile-web-app-capable" content="yes">
 
-    <!-- NEW: PWA Manifest Link -->
+    <!-- PWA Manifest Link -->
     <link rel="manifest" id="manifest-link">
 
     <title>Neon Serpent</title>
@@ -21,11 +21,15 @@
             overscroll-behavior: none;
             -webkit-user-select: none;
             user-select: none;
+            perspective: 1000px; /* NEW: Setup 3D space */
         }
         
         #game-container {
             box-shadow: 0 0 25px rgba(34, 197, 94, 0.2);
-            transition: box-shadow 0.3s ease, border-color 0.3s ease;
+            /* NEW: Smooth transition for Gyroscope 3D Tilting */
+            transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.1s ease-out;
+            transform-style: preserve-3d;
+            will-change: transform;
         }
 
         .dpad-btn {
@@ -46,7 +50,11 @@
             transform: scale(0.95);
         }
 
-        /* Custom Scrollbar for overlay */
+        /* Combo Bar Glow */
+        #combo-bar-fill {
+            transition: width 0.1s linear, background-color 0.3s ease;
+        }
+
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.5); border-radius: 10px; }
@@ -54,14 +62,22 @@
 </head>
 <body class="bg-gray-950 text-white h-[100dvh] w-screen overflow-hidden flex flex-col font-sans selection:bg-transparent">
 
-    <!-- Header / Scoreboard -->
-    <header class="w-full flex justify-between items-center p-4 md:p-6 h-[10%] min-h-[60px] relative">
-        <div class="flex flex-col">
+    <!-- Header / Scoreboard & Combo System -->
+    <header class="w-full flex justify-between items-center p-4 md:p-6 h-[12%] min-h-[70px] relative">
+        <div class="flex flex-col relative">
             <span class="text-gray-400 text-xs md:text-sm font-bold uppercase tracking-wider">Score</span>
-            <span id="scoreDisplay" class="text-3xl md:text-4xl font-black text-green-400 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]">0</span>
+            <div class="flex items-baseline gap-2">
+                <span id="scoreDisplay" class="text-3xl md:text-4xl font-black text-green-400 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]">0</span>
+                <!-- NEW: Combo Multiplier UI -->
+                <span id="comboDisplay" class="text-lg font-bold text-yellow-400 hidden animate-pulse">x1</span>
+            </div>
+            <!-- NEW: Combo Timer Bar -->
+            <div id="combo-bar-bg" class="w-24 h-1.5 bg-gray-800 rounded-full mt-1 hidden overflow-hidden">
+                <div id="combo-bar-fill" class="h-full w-full bg-yellow-400 rounded-full shadow-[0_0_8px_rgba(250,204,21,0.8)]"></div>
+            </div>
         </div>
         
-        <!-- NEW: In-Game Controls (Hidden by default) -->
+        <!-- In-Game Controls -->
         <div id="in-game-controls" class="hidden flex gap-3 absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
             <button id="btn-pause" class="bg-gray-900/80 hover:bg-gray-800 p-2 md:p-2.5 rounded-full border border-gray-700 transition-colors shadow-[0_0_10px_rgba(0,0,0,0.5)]">
                 <i data-lucide="pause" class="w-4 h-4 md:w-5 md:h-5 text-yellow-400" id="icon-pause"></i>
@@ -72,7 +88,7 @@
         </div>
 
         <div class="flex items-center gap-3 md:gap-4">
-            <!-- NEW: Audio Toggle -->
+            <!-- Audio Toggle -->
             <button id="btn-sound" class="text-gray-400 hover:text-white transition-colors z-20">
                 <i data-lucide="volume-2" id="icon-sound" class="w-5 h-5 md:w-6 md:h-6"></i>
             </button>
@@ -83,12 +99,12 @@
         </div>
     </header>
 
-    <!-- Game Canvas Area (Expanded h-[62%]) -->
-    <main class="w-full flex-grow flex items-center justify-center relative p-2 md:p-4 h-[62%]">
+    <!-- Game Canvas Area -->
+    <main class="w-full flex-grow flex items-center justify-center relative p-2 md:p-4 h-[60%]">
         <div id="game-container" class="relative bg-gray-900 rounded-xl overflow-hidden border border-gray-800 w-full h-full max-w-[600px] max-h-[600px] flex items-center justify-center">
             <canvas id="gameCanvas" class="block m-auto"></canvas>
             
-            <!-- Paused Overlay (NEW) -->
+            <!-- Paused Overlay -->
             <div id="pause-overlay" class="absolute inset-0 bg-gray-950/50 backdrop-blur-sm flex flex-col items-center justify-center z-10 hidden">
                 <h2 class="text-3xl md:text-4xl font-black mb-2 text-white tracking-widest text-center drop-shadow-[0_0_10px_rgba(250,204,21,0.8)] animate-pulse">PAUSED</h2>
                 <p class="text-gray-300 text-xs md:text-sm">Take a breather, Serpent.</p>
@@ -113,14 +129,14 @@
                         <p id="achievement-desc" class="text-[10px] md:text-xs text-gray-300 text-center leading-tight"></p>
                     </div>
 
-                    <!-- NEW: AI Epic Tale Feature -->
+                    <!-- AI Epic Tale Feature -->
                     <button id="btn-epic-tale" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg text-xs md:text-sm transition-colors shadow-[0_0_10px_rgba(79,70,229,0.3)] w-full max-w-[250px] mb-4 hidden flex justify-center items-center gap-2">
                         <i data-lucide="book-open" class="w-4 h-4"></i> Generate Epic Tale ✨
                     </button>
                     <div id="epic-tale-box" class="w-full bg-indigo-900/30 border border-indigo-500/40 rounded-lg p-3 mb-4 hidden transform transition-all text-[10px] md:text-xs text-indigo-200 italic text-center leading-relaxed">
                     </div>
 
-                    <!-- Global Leaderboard (Hidden until active) -->
+                    <!-- Global Leaderboard -->
                     <div id="leaderboard-container" class="w-full bg-gray-900/60 rounded-lg p-3 mb-4 border border-gray-800 hidden">
                         <h3 class="text-[10px] text-gray-400 font-bold uppercase tracking-widest text-center mb-2 flex items-center justify-center gap-1">
                             <i data-lucide="trophy" class="w-3 h-3 text-yellow-500"></i> Global Top 3
@@ -130,6 +146,19 @@
                         </ul>
                     </div>
                     
+                    <!-- Game Mode Selector -->
+                    <div class="w-full bg-gray-900/80 p-3 rounded-xl border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)] mb-4">
+                        <h3 class="text-[10px] md:text-xs font-bold text-blue-400 mb-2 text-center uppercase tracking-widest flex justify-center items-center gap-1">
+                            <i data-lucide="gamepad-2" class="w-3 h-3"></i> Select Game Mode
+                        </h3>
+                        <select id="mode-dropdown" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-xs md:text-sm text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
+                            <option value="Classic">🟢 Classic (Zen)</option>
+                            <option value="Maze">🧱 Maze Runner</option>
+                            <option value="Boss">👹 Boss Chase</option>
+                            <option value="Portal">🌌 Quantum Portals</option>
+                        </select>
+                    </div>
+
                     <!-- Speed Selection -->
                     <div class="flex gap-2 md:gap-3 mb-6">
                         <button id="speed-slow" class="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-full border-2 border-green-500 text-green-500 font-bold transition-colors">Slow</button>
@@ -141,7 +170,7 @@
                         PLAY NOW
                     </button>
 
-                    <!-- Theme Selector (Unlocked) -->
+                    <!-- Theme Selector -->
                     <div id="theme-selector-box" class="w-full bg-gray-900/80 p-3 rounded-xl border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.1)] hidden mb-4">
                         <h3 class="text-[10px] md:text-xs font-bold text-purple-400 mb-2 text-center uppercase tracking-widest flex justify-center items-center gap-1">
                             <i data-lucide="palette" class="w-3 h-3"></i> Choose Theme
@@ -156,7 +185,7 @@
                         </select>
                     </div>
 
-                    <!-- Login Promo (Locked) -->
+                    <!-- Login Promo -->
                     <div id="login-promo-box" class="w-full bg-gray-900/50 p-4 rounded-xl border border-gray-700 border-dashed text-center">
                         <i data-lucide="lock" class="w-5 h-5 text-gray-400 mx-auto mb-2"></i>
                         <p class="text-xs text-gray-400 mb-3">Log in to save your High Score globally and unlock <strong>Custom Themes!</strong></p>
@@ -170,7 +199,7 @@
         </div>
     </main>
 
-    <!-- Mobile Controls (D-Pad, reduced height slightly to favor canvas) -->
+    <!-- Mobile Controls (D-Pad) -->
     <footer class="w-full flex justify-center items-center p-2 pb-6 h-[28%] min-h-[160px]">
         <div class="grid grid-cols-3 grid-rows-3 gap-2 w-48 h-48 md:w-56 md:h-56">
             <div class="col-start-2 row-start-1 dpad-btn" id="btn-up">
@@ -206,7 +235,6 @@
                     <label class="block text-xs font-bold text-gray-400 mb-1">Player Name</label>
                     <div class="flex gap-2">
                         <input type="text" id="login-name" placeholder="e.g. SnakeKing99" maxlength="15" class="w-full flex-grow bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
-                        <!-- AI Name Generator Button -->
                         <button id="btn-ai-name" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-3 rounded-lg transition-colors flex items-center justify-center text-xs whitespace-nowrap shadow-[0_0_10px_rgba(168,85,247,0.3)]">
                             Auto ✨
                         </button>
@@ -223,7 +251,7 @@
         </div>
     </div>
 
-    <!-- We use type="module" to enable Firebase imports securely -->
+    <!-- Firebase Imports -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -237,7 +265,7 @@
         let db, auth, currentUser;
         let hasProfile = false;
         let playerName = "Player";
-        let dbHighScore = 0; // High score pulled from DB
+        let dbHighScore = 0; 
         
         try {
             const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
@@ -246,7 +274,6 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
                 
-                // Rule 3: Auth before Queries
                 const initFirebase = async () => {
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -279,7 +306,6 @@
                             console.error("Error fetching profile from cloud:", e);
                         }
 
-                        // Subscribe to Live Leaderboard safely
                         try {
                             const lbCollection = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
                             onSnapshot(lbCollection, (snapshot) => {
@@ -326,7 +352,6 @@
         let appleX = 5, appleY = 5;
         
         let xVelocity = 0, yVelocity = 0;
-        let nextXVelocity = 0, nextYVelocity = 0;
         let inputQueue = []; 
         
         let score = 0;
@@ -335,15 +360,52 @@
         let speed = 8; 
         let isGameOver = false;
         let isGameRunning = false;
-        let isPaused = false; // NEW STATE
+        let isPaused = false;
         let lastRenderTime = 0;
         let gamesPlayed = 0;
 
-        // --- NEW: Dynamic Power-Ups & Audio State ---
-        let powerUp = null; // {x, y, spawnTime}
-        let floatingTexts = []; // Array to hold floating text animations
+        // Dynamic Power-Ups & Audio State
+        let powerUp = null; 
+        let floatingTexts = []; 
         let audioCtx;
         let soundEnabled = true;
+
+        // --- NEW: Screen Shake Engine ---
+        let screenShakeTime = 0;
+        let screenShakeMagnitude = 0;
+
+        function triggerScreenShake(magnitude, duration) {
+            screenShakeMagnitude = magnitude;
+            screenShakeTime = performance.now() + duration;
+        }
+
+        // --- NEW: Adrenaline Combo System ---
+        let comboMultiplier = 1;
+        let comboTimeLeft = 0;
+        const maxComboTime = 4000; // 4 seconds to chain
+
+        // --- Game Modes State ---
+        let currentGameMode = "Classic";
+        let walls = [];
+        let boss = null;
+        let portals = [];
+        let isTimeFrozen = false;
+        let timeFreezeStart = 0;
+        let lastPortalMoveTime = 0;
+
+        // Animated Background Particles
+        let bgParticles = [];
+        const numParticles = 25;
+        for(let i=0; i<numParticles; i++) {
+            bgParticles.push({
+                x: Math.random() * tileCount,
+                y: Math.random() * tileCount,
+                vx: (Math.random() - 0.5) * 0.05,
+                vy: (Math.random() - 0.5) * 0.05,
+                size: Math.random() * 1.5 + 0.5,
+                alpha: Math.random() * 0.4 + 0.1
+            });
+        }
 
         // Theme Data Dictionary
         const themeLibrary = {
@@ -391,10 +453,42 @@
             }
         }
 
+        // --- NEW: 3D Gyroscope & Mouse Parallax ---
+        function apply3DTilt(x, y) {
+            const container = document.getElementById('game-container');
+            container.style.transform = `rotateY(${x}deg) rotateX(${-y}deg)`;
+        }
+
+        // Mouse Fallback for PC
+        document.addEventListener('mousemove', (e) => {
+            if (!isGameRunning || isPaused) {
+                apply3DTilt(0, 0);
+                return;
+            }
+            let x = (e.clientX / window.innerWidth - 0.5) * 15; // Max 7.5 deg tilt
+            let y = (e.clientY / window.innerHeight - 0.5) * 15;
+            apply3DTilt(x, y);
+        });
+
+        // Gyroscope for Mobile
+        window.addEventListener('deviceorientation', (e) => {
+            if (!isGameRunning || isPaused) return;
+            // Clamp values and dampen
+            let x = Math.min(Math.max(e.gamma, -20), 20) / 2; // Left/Right
+            let y = Math.min(Math.max(e.beta - 45, -20), 20) / 2; // Front/Back (offset 45deg holding angle)
+            if (e.gamma !== null) apply3DTilt(x, y);
+        });
+
+        // Request Gyro Permission for iOS 13+ on PLAY button
+        function requestGyroPermission() {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission().catch(console.error);
+            }
+        }
+
         // --- Core UI & Sizing ---
         function resizeCanvas() {
             const container = document.getElementById('game-container');
-            // Expanded to fit better on big screens, while maxing safely on small phones
             let rawSize = Math.min(container.clientWidth - 16, container.clientHeight - 16, 600);
             const size = Math.max(150, rawSize); 
             const adjustedSize = Math.floor(size / tileCount) * tileCount;
@@ -414,13 +508,32 @@
             if (isGameOver) return;
             window.requestAnimationFrame(gameLoop);
 
-            // If paused, just keep drawing to maintain the floating animation, but don't update logic
             if (isPaused) {
                 drawGame();
                 return;
             }
 
-            const secondsSinceLastRender = (currentTime - lastRenderTime) / 1000;
+            const delta = currentTime - lastRenderTime;
+
+            // Update Combo Timer
+            if (comboTimeLeft > 0) {
+                comboTimeLeft -= delta;
+                document.getElementById('combo-bar-fill').style.width = `${(comboTimeLeft / maxComboTime) * 100}%`;
+                
+                // Color change based on multiplier
+                const fill = document.getElementById('combo-bar-fill');
+                if (comboMultiplier >= 5) fill.style.backgroundColor = '#ec4899'; // Pink Overdrive
+                else if (comboMultiplier >= 3) fill.style.backgroundColor = '#f97316'; // Orange
+                else fill.style.backgroundColor = '#facc15'; // Yellow
+                
+                if (comboTimeLeft <= 0) {
+                    comboMultiplier = 1;
+                    document.getElementById('comboDisplay').classList.add('hidden');
+                    document.getElementById('combo-bar-bg').classList.add('hidden');
+                }
+            }
+
+            const secondsSinceLastRender = delta / 1000;
             const currentSpeed = Math.min(speed + Math.floor(score / 5), 25);
             
             if (secondsSinceLastRender < 1 / currentSpeed) return;
@@ -443,151 +556,408 @@
             headY += yVelocity;
 
             // --- Portal Wall Boundaries ---
-            // The snake passes through the glowing edge and wraps around
             if (headX < 0) headX = tileCount - 1; 
             if (headX >= tileCount) headX = 0;
             if (headY < 0) headY = tileCount - 1;
             if (headY >= tileCount) headY = 0;
 
+            // GAME MODE: Quantum Portals Dynamic Shifting
+            if (currentGameMode === 'Portal' && portals.length === 2 && isGameRunning) {
+                if (performance.now() - lastPortalMoveTime > 15000) {
+                    lastPortalMoveTime = performance.now();
+                    let emptyForPortals = getEmptySpaces();
+                    if (emptyForPortals.length >= 2) {
+                        let r1 = Math.floor(Math.random() * emptyForPortals.length);
+                        portals[0].x = emptyForPortals[r1].x; portals[0].y = emptyForPortals[r1].y;
+                        emptyForPortals.splice(r1, 1);
+                        let r2 = Math.floor(Math.random() * emptyForPortals.length);
+                        portals[1].x = emptyForPortals[r2].x; portals[1].y = emptyForPortals[r2].y;
+                        
+                        triggerScreenShake(8, 300);
+                        playSound('powerup');
+                        floatingTexts.push({x: tileCount/2, y: tileCount/2, text: "PORTALS SHIFTED!", color: "#a855f7", life: 50});
+                    }
+                }
+
+                if (headX === portals[0].x && headY === portals[0].y) {
+                    headX = portals[1].x; headY = portals[1].y;
+                    playSound('powerup');
+                    triggerScreenShake(5, 150);
+                    floatingTexts.push({x: headX, y: headY, text: "WARP!", color: "#a855f7", life: 30});
+                } else if (headX === portals[1].x && headY === portals[1].y) {
+                    headX = portals[0].x; headY = portals[0].y;
+                    playSound('powerup');
+                    triggerScreenShake(5, 150);
+                    floatingTexts.push({x: headX, y: headY, text: "WARP!", color: "#f97316", life: 30});
+                }
+            }
+
+            // GAME MODE: Boss Chase Logic
+            if (currentGameMode === 'Boss' && score >= 5 && !boss) {
+                let emptyForBoss = getEmptySpaces();
+                let bx = tileCount - 2, by = tileCount - 2;
+                if (emptyForBoss.length > 0) {
+                    let rb = emptyForBoss[Math.floor(Math.random() * emptyForBoss.length)];
+                    bx = rb.x; by = rb.y;
+                }
+                // NEW: moveAccumulator and 0.4 exact ratio (Boss is 40% speed of player)
+                boss = { x: bx, y: by, parts: [{x: bx, y: by}], length: 4, moveAccumulator: 0, speedRatio: 0.4 };
+                floatingTexts.push({x: tileCount/2, y: tileCount/2, text: "WARNING: BOSS INBOUND", color: "#ef4444", life: 60});
+                triggerScreenShake(12, 600); 
+            }
+
+            // GAME MODE: Maze Runner Collisions
+            if (currentGameMode === 'Maze') {
+                for (let w of walls) {
+                    if (headX === w.x && headY === w.y && isGameRunning && (xVelocity !== 0 || yVelocity !== 0)) {
+                        handleGameOver(); return;
+                    }
+                }
+            }
+
+            // Self Collisions
             for (let i = 0; i < snakeParts.length; i++) {
                 if (snakeParts[i].x === headX && snakeParts[i].y === headY && isGameRunning && (xVelocity !== 0 || yVelocity !== 0)) {
-                    handleGameOver();
-                    return;
+                    handleGameOver(); return;
                 }
             }
 
             snakeParts.push({x: headX, y: headY});
             while (snakeParts.length > tailLength) snakeParts.shift();
 
+            // Check Time Freeze Status
+            if (isTimeFrozen && performance.now() - timeFreezeStart > 5000) {
+                isTimeFrozen = false;
+                triggerScreenShake(4, 200);
+                floatingTexts.push({x: headX, y: headY, text: "UNFROZEN!", color: "#ef4444", life: 30});
+            }
+
+            // GAME MODE: Boss Intelligence & Movement
+            if (currentGameMode === 'Boss' && boss && isGameRunning) {
+                if (!isTimeFrozen) {
+                    // Update boss position strictly based on the 40% speed ratio
+                    boss.moveAccumulator += boss.speedRatio;
+                    
+                    if (boss.moveAccumulator >= 1) {
+                        boss.moveAccumulator -= 1; // Consume 1 full move unit
+                        
+                        let dx = headX - boss.x;
+                        let dy = headY - boss.y;
+
+                        if (Math.abs(dx) > Math.abs(dy)) {
+                            boss.x += dx > 0 ? 1 : -1;
+                        } else if (dy !== 0) {
+                            boss.y += dy > 0 ? 1 : -1;
+                        }
+
+                        boss.parts.push({x: boss.x, y: boss.y});
+                        while (boss.parts.length > boss.length) boss.parts.shift();
+                    }
+                }
+
+                // Boss Collisions (Player head hits boss body = GAME OVER)
+                for(let bp of boss.parts) {
+                    if (headX === bp.x && headY === bp.y) { handleGameOver(); return; }
+                }
+                
+                // NEW: Boss Combat! If Boss Head hits Player Body, Boss dies!
+                let bossKilled = false;
+                for(let sp of snakeParts) {
+                    if (boss.x === sp.x && boss.y === sp.y) { 
+                        bossKilled = true;
+                        break; 
+                    }
+                }
+
+                if (bossKilled) {
+                    score += 25; // Massive reward
+                    document.getElementById('scoreDisplay').innerText = score;
+                    playSound('powerup');
+                    triggerScreenShake(15, 600);
+                    floatingTexts.push({x: boss.x, y: boss.y, text: "BOSS SHATTERED! +25", color: "#ec4899", life: 60});
+                    boss = null; // Kill boss
+                } else {
+                    // BOSS INTELLIGENCE: The Boss competes for your food!
+                    if (boss && boss.x === appleX && boss.y === appleY) {
+                        boss.length += 2; 
+                        floatingTexts.push({x: boss.x, y: boss.y, text: "BOSS ATE IT!", color: "#ef4444", life: 40});
+                        playSound('die'); 
+                        triggerScreenShake(4, 150);
+                        spawnItems(); 
+                    }
+                }
+            }
+
             if (headX === appleX && headY === appleY) appleCollision();
 
-            // --- NEW: Power-Up Logic ---
+            // Power-Up Logic
             if (powerUp) {
-                // Check expiry (5 seconds)
                 if (performance.now() - powerUp.spawnTime > 5000) {
                     powerUp = null;
                 } 
-                // Check consumption
                 else if (headX === powerUp.x && headY === powerUp.y) {
                     playSound('powerup');
-                    score += 5;
-                    document.getElementById('scoreDisplay').innerText = score;
+                    triggerScreenShake(6, 300);
                     
-                    // Effect: Cut tail length in half!
-                    let cutAmount = Math.floor(snakeParts.length / 2);
-                    snakeParts.splice(0, cutAmount);
-                    tailLength = snakeParts.length + 1;
-                    
-                    floatingTexts.push({x: headX, y: headY, text: "TAIL CUT! +5", color: "#facc15", life: 40});
+                    if (powerUp.type === 'freeze') {
+                        isTimeFrozen = true;
+                        timeFreezeStart = performance.now();
+                        floatingTexts.push({x: headX, y: headY, text: "TIME FREEZE!", color: "#38bdf8", life: 40});
+                    } else {
+                        score += 5;
+                        document.getElementById('scoreDisplay').innerText = score;
+                        let cutAmount = Math.floor(snakeParts.length / 2);
+                        snakeParts.splice(0, cutAmount);
+                        tailLength = snakeParts.length + 1;
+                        floatingTexts.push({x: headX, y: headY, text: "TAIL CUT! +5", color: "#facc15", life: 40});
+                    }
                     powerUp = null;
                 }
             }
 
-            // Update floating animations
             floatingTexts.forEach(ft => { ft.y -= 0.05; ft.life -= 1; });
             floatingTexts = floatingTexts.filter(ft => ft.life > 0);
+
+            if (!isTimeFrozen) {
+                bgParticles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    if (p.x < 0) p.x = tileCount;
+                    if (p.x > tileCount) p.x = 0;
+                    if (p.y < 0) p.y = tileCount;
+                    if (p.y > tileCount) p.y = 0;
+                });
+            }
         }
 
-        function appleCollision() {
-            playSound('eat'); // NEW: Play eat sound
-            score++;
-            document.getElementById('scoreDisplay').innerText = score;
-            tailLength++;
-            
-            if (navigator.vibrate) navigator.vibrate(50);
-            currentFoodSymbol = foodSymbols[Math.floor(Math.random() * foodSymbols.length)];
-            
+        function getEmptySpaces() {
             let emptySpaces = [];
             for(let x = 0; x < tileCount; x++){
                 for(let y = 0; y < tileCount; y++){
                     let occupied = (headX === x && headY === y);
                     for(let part of snakeParts) if(part.x === x && part.y === y) occupied = true;
+                    if (currentGameMode === 'Maze') for(let w of walls) if(w.x === x && w.y === y) occupied = true;
+                    if (currentGameMode === 'Portal') for(let p of portals) if(p.x === x && p.y === y) occupied = true;
+                    if (currentGameMode === 'Boss' && boss) for(let bp of boss.parts) if(bp.x === x && bp.y === y) occupied = true;
                     if(!occupied) emptySpaces.push({x, y});
                 }
             }
+            return emptySpaces;
+        }
+
+        function spawnItems() {
+            currentFoodSymbol = foodSymbols[Math.floor(Math.random() * foodSymbols.length)];
+            let emptySpaces = getEmptySpaces();
+            
             if(emptySpaces.length > 0) {
                 let rand = emptySpaces[Math.floor(Math.random() * emptySpaces.length)];
                 appleX = rand.x; appleY = rand.y;
 
-                // --- NEW: Spawn Power-Up Chance (15%) ---
                 if (!powerUp && Math.random() < 0.15 && emptySpaces.length > 1) {
                     let puRand = emptySpaces[Math.floor(Math.random() * emptySpaces.length)];
-                    powerUp = { x: puRand.x, y: puRand.y, spawnTime: performance.now() };
+                    let puType = (currentGameMode === 'Boss' && Math.random() > 0.5) ? 'freeze' : 'cut';
+                    powerUp = { x: puRand.x, y: puRand.y, spawnTime: performance.now(), type: puType };
                 }
-
             } else {
                 snakeParts = []; tailLength = 2;
                 appleX = Math.floor(tileCount / 2); appleY = Math.floor(tileCount / 2);
             }
         }
 
+        function appleCollision() {
+            playSound('eat'); 
+            
+            // --- NEW: Adrenaline Combo System ---
+            comboMultiplier = Math.min(5, comboMultiplier + 1);
+            comboTimeLeft = maxComboTime;
+            
+            const comboEl = document.getElementById('comboDisplay');
+            const barEl = document.getElementById('combo-bar-bg');
+            comboEl.innerText = `x${comboMultiplier}`;
+            comboEl.classList.remove('hidden');
+            barEl.classList.remove('hidden');
+            
+            let earnedPoints = 1 * comboMultiplier;
+            score += earnedPoints;
+            document.getElementById('scoreDisplay').innerText = score;
+            tailLength++;
+            
+            if (comboMultiplier >= 5) triggerScreenShake(2, 100); // Mini thud on overdrive
+            
+            if (navigator.vibrate) navigator.vibrate(50);
+            
+            // GAME MODE: Maze Generation
+            if (currentGameMode === 'Maze' && score % 3 === 0) {
+                let emptyForWalls = getEmptySpaces();
+                for(let i=0; i<2; i++) {
+                    if(emptyForWalls.length > 0) {
+                        let wRand = emptyForWalls[Math.floor(Math.random() * emptyForWalls.length)];
+                        walls.push({x: wRand.x, y: wRand.y});
+                        emptyForWalls = emptyForWalls.filter(space => space.x !== wRand.x || space.y !== wRand.y);
+                    }
+                }
+                triggerScreenShake(4, 200); 
+            }
+
+            spawnItems();
+        }
+
         function drawGame() {
-            ctx.fillStyle = currentTheme.bg; 
+            // Apply Screen Shake to Canvas Context
+            ctx.save();
+            if (screenShakeTime > performance.now()) {
+                let dx = (Math.random() - 0.5) * screenShakeMagnitude;
+                let dy = (Math.random() - 0.5) * screenShakeMagnitude;
+                ctx.translate(dx, dy);
+            } else {
+                screenShakeMagnitude = 0;
+            }
+
+            const bgGrad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width * 0.1, canvas.width/2, canvas.height/2, canvas.width);
+            
+            // If in 5x Combo Overdrive, make the background pulse brilliantly!
+            if (comboMultiplier >= 5 && isGameRunning) {
+                 const timePulse = performance.now() / 100;
+                 ctx.shadowBlur = 30 + 10 * Math.sin(timePulse);
+                 ctx.shadowColor = currentTheme.snakeHead;
+                 bgGrad.addColorStop(0, currentTheme.snakeHead + "66"); // Brighten core
+            } else {
+                 bgGrad.addColorStop(0, currentTheme.bg);
+            }
+            
+            bgGrad.addColorStop(1, '#020205'); 
+            ctx.fillStyle = bgGrad;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // --- NEW: Cool Glowing Edge Boundary ---
+            ctx.fillStyle = currentTheme.snakeHead;
+            bgParticles.forEach(p => {
+                ctx.globalAlpha = p.alpha;
+                ctx.beginPath();
+                ctx.arc(p.x * tileSize, p.y * tileSize, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1.0; 
+
+            // Glowing Edge Boundary
             ctx.lineWidth = 8;
             ctx.strokeStyle = currentTheme.snakeHead; 
             ctx.shadowBlur = 15;
             ctx.shadowColor = currentTheme.snakeHead;
             ctx.strokeRect(0, 0, canvas.width, canvas.height);
-            ctx.shadowBlur = 0; // Reset shadow
+            ctx.shadowBlur = 0;
 
-            // Grid Lines
+            // Grid Lines 
             ctx.strokeStyle = currentTheme.grid; 
             ctx.lineWidth = 0.5;
+            ctx.globalAlpha = 0.6;
             for(let i = 0; i < tileCount; i++) {
                 ctx.beginPath(); ctx.moveTo(i * tileSize, 0); ctx.lineTo(i * tileSize, canvas.height); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(0, i * tileSize); ctx.lineTo(canvas.width, i * tileSize); ctx.stroke();
             }
+            ctx.globalAlpha = 1.0;
 
+            // GAME MODE: Draw Portals
+            if (currentGameMode === 'Portal' && portals.length === 2) {
+                const time = isPaused || isTimeFrozen ? 0 : performance.now() / 200;
+                portals.forEach((p, index) => {
+                    ctx.strokeStyle = p.color;
+                    ctx.lineWidth = 3;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x * tileSize + tileSize/2, p.y * tileSize + tileSize/2, (tileSize/2 - 2) + Math.sin(time + index)*2, 0, Math.PI * 2);
+                    ctx.stroke();
+                });
+                ctx.shadowBlur = 0;
+            }
+
+            // GAME MODE: Draw Maze Walls
+            if (currentGameMode === 'Maze' && walls.length > 0) {
+                ctx.fillStyle = '#6b7280'; 
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#9ca3af';
+                walls.forEach(w => {
+                    ctx.beginPath();
+                    ctx.roundRect(w.x * tileSize + 1, w.y * tileSize + 1, tileSize - 2, tileSize - 2, 2);
+                    ctx.fill();
+                });
+                ctx.shadowBlur = 0;
+            }
+
+            // Food
             ctx.shadowBlur = 0;
             ctx.font = `${Math.floor(tileSize * 0.8)}px sans-serif`;
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(currentFoodSymbol, appleX * tileSize + tileSize / 2, appleY * tileSize + tileSize / 2);
+            
+            // Overdrive Food Shake effect
+            let foodOx = 0, foodOy = 0;
+            if (comboMultiplier >= 5) {
+                foodOx = (Math.random() - 0.5) * 4;
+                foodOy = (Math.random() - 0.5) * 4;
+            }
+            ctx.fillText(currentFoodSymbol, appleX * tileSize + tileSize / 2 + foodOx, appleY * tileSize + tileSize / 2 + foodOy);
 
-            // --- NEW: Draw Power-Up ---
+            // Power-Up
             if (powerUp) {
-                const time = performance.now() / 200;
-                ctx.shadowBlur = 15 + 5 * Math.sin(time * 5); // Pulsing glow
-                ctx.shadowColor = '#facc15'; 
-                ctx.fillText('🌟', powerUp.x * tileSize + tileSize / 2, powerUp.y * tileSize + tileSize / 2);
+                const time = isPaused ? 0 : performance.now() / 200;
+                ctx.shadowBlur = 15 + 5 * Math.sin(time * 5); 
+                
+                if (powerUp.type === 'freeze') {
+                    ctx.shadowColor = '#38bdf8'; 
+                    ctx.fillText('⏳', powerUp.x * tileSize + tileSize / 2, powerUp.y * tileSize + tileSize / 2);
+                } else {
+                    ctx.shadowColor = '#facc15'; 
+                    ctx.fillText('🌟', powerUp.x * tileSize + tileSize / 2, powerUp.y * tileSize + tileSize / 2);
+                }
+            }
+            ctx.shadowBlur = 0;
+
+            // GAME MODE: Draw Boss
+            if (currentGameMode === 'Boss' && boss) {
+                ctx.shadowBlur = isTimeFrozen ? 0 : 15;
+                ctx.shadowColor = '#ef4444'; 
+                
+                boss.parts.forEach((bp, i) => {
+                    if (isTimeFrozen) ctx.fillStyle = '#38bdf8'; 
+                    else ctx.fillStyle = (i === boss.parts.length - 1) ? '#ef4444' : '#b91c1c';
+                    
+                    ctx.beginPath();
+                    ctx.roundRect(bp.x * tileSize + 1, bp.y * tileSize + 1, tileSize - 2, tileSize - 2, 3);
+                    ctx.fill();
+                });
+                ctx.shadowBlur = 0;
             }
 
+            // Draw Snake
             ctx.shadowBlur = 10;
             ctx.shadowColor = currentTheme.snakeBody;
             const rgbBody = hexToRgb(currentTheme.snakeBody);
 
-            const time = performance.now() / 200; // Time variable for organic slithering
+            const time = isPaused ? 0 : performance.now() / 200; 
 
             for (let i = 0; i < snakeParts.length; i++) {
                 let part = snakeParts[i];
-
-                // Calculate organic wiggle/slither effect
                 let wiggleX = 0;
                 let wiggleY = 0;
 
-                if (isGameRunning) {
+                if (isGameRunning && !isPaused) {
                     let dirX = xVelocity;
                     let dirY = yVelocity;
 
-                    // Infer segment direction based on the piece ahead of it
                     if (i > 0) {
                         dirX = snakeParts[i-1].x - part.x;
                         dirY = snakeParts[i-1].y - part.y;
-                        // Handle grid wrap-around edge cases
                         if (Math.abs(dirX) > 1) dirX = dirX > 0 ? -1 : 1;
                         if (Math.abs(dirY) > 1) dirY = dirY > 0 ? -1 : 1;
                     }
 
-                    // Apply a sine wave wiggle perpendicular to the movement
                     const wiggleAmount = (tileSize * 0.15) * Math.sin(time - (i * 0.8));
                     if (dirX !== 0) {
-                        wiggleY = wiggleAmount; // Moving horizontal, wiggle vertical
+                        wiggleY = wiggleAmount; 
                     } else if (dirY !== 0) {
-                        wiggleX = wiggleAmount; // Moving vertical, wiggle horizontal
+                        wiggleX = wiggleAmount; 
                     } else {
-                        wiggleY = wiggleAmount; // Default stationary hover
+                        wiggleY = wiggleAmount; 
                     }
                 }
 
@@ -598,14 +968,16 @@
             }
             ctx.shadowBlur = 0;
 
-            // --- NEW: Draw Floating Texts ---
+            // Draw Floating Texts
             ctx.font = `bold ${Math.floor(tileSize * 0.6)}px sans-serif`;
             floatingTexts.forEach(ft => {
                 ctx.fillStyle = ft.color;
-                ctx.globalAlpha = Math.max(0, ft.life / 40); // Fade out as life decreases
+                ctx.globalAlpha = Math.max(0, ft.life / 40);
                 ctx.fillText(ft.text, ft.x * tileSize + tileSize / 2, ft.y * tileSize);
             });
-            ctx.globalAlpha = 1.0; // Reset alpha
+            ctx.globalAlpha = 1.0; 
+
+            ctx.restore();
         }
 
         // --- Controls ---
@@ -642,11 +1014,17 @@
             else { if(Math.abs(dy) > 30) changeDirection(dy > 0 ? 'down' : 'up'); }
         }, {passive: true});
 
+        // --- Game Mode Selection Logic ---
+        document.getElementById('mode-dropdown').addEventListener('change', (e) => {
+            currentGameMode = e.target.value;
+        });
+
         // --- Game Flow & Login Trigger ---
         function startGame() {
-            initAudio(); // NEW: Initialize audio context on first user gesture
+            requestGyroPermission(); // Start listening to phone tilt
+            initAudio(); 
 
-            headX = Math.floor(tileCount / 2); // Start in center
+            headX = Math.floor(tileCount / 2); 
             headY = Math.floor(tileCount / 2);
             snakeParts = [{x: headX, y: headY}]; 
             tailLength = 2;
@@ -654,14 +1032,33 @@
             score = 0; document.getElementById('scoreDisplay').innerText = score;
             speed = baseSpeed; isGameOver = false;
             
+            // Combo System Resets
+            comboMultiplier = 1;
+            comboTimeLeft = 0;
+            document.getElementById('comboDisplay').classList.add('hidden');
+            document.getElementById('combo-bar-bg').classList.add('hidden');
+
+            // Mode State Resets
+            walls = [];
+            boss = null;
+            portals = [];
+            isTimeFrozen = false;
+            if (currentGameMode === 'Portal') {
+                portals = [
+                    {x: 3, y: 3, color: '#a855f7'}, 
+                    {x: tileCount-4, y: tileCount-4, color: '#f97316'} 
+                ];
+                lastPortalMoveTime = performance.now();
+            }
+
             document.getElementById('overlay').classList.add('hidden');
             document.getElementById('ai-achievement-box').classList.add('hidden');
             document.getElementById('btn-epic-tale').classList.add('hidden');
             document.getElementById('epic-tale-box').classList.add('hidden');
             document.getElementById('ai-message').innerText = ""; 
 
-            // Show In-Game Controls
             document.getElementById('in-game-controls').classList.remove('hidden');
+            apply3DTilt(0,0); // reset tilt
 
             isGameRunning = true;
             isPaused = false;
@@ -670,10 +1067,12 @@
         }
 
         function handleGameOver() {
-            playSound('die'); // NEW: Play death sound
+            playSound('die'); 
+            triggerScreenShake(15, 800); 
             
             isGameOver = true; isGameRunning = false;
             gamesPlayed++;
+            apply3DTilt(0,0); // Reset tilt when dead
             
             if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
             
@@ -688,13 +1087,11 @@
             document.getElementById('overlay').classList.remove('hidden');
             document.getElementById('btn-epic-tale').classList.remove('hidden');
             
-            // Hide In-Game Controls
             document.getElementById('in-game-controls').classList.add('hidden');
 
             generateGameOverMessage(score);
             generateRunAchievement(score);
 
-            // Trigger Login after 5 games if not logged in
             if (gamesPlayed >= 5 && !hasProfile) {
                 setTimeout(() => openLoginModal(), 1500); 
             }
@@ -760,13 +1157,11 @@
             foodSymbols = t.foodEmojis;
             currentFoodSymbol = foodSymbols[0];
             
-            // Apply glow matching the theme
-            document.getElementById('game-container').style.boxShadow = `0 0 25px ${t.snakeHead}33`; // 33 is approx 20% opacity hex
-            
+            document.getElementById('game-container').style.boxShadow = `0 0 25px ${t.snakeHead}33`; 
             drawGame();
         });
 
-        // --- NEW: Pause & Home Logic ---
+        // --- Pause & Home Logic ---
         document.getElementById('btn-pause').addEventListener('click', () => {
             if (!isGameRunning || isGameOver) return;
             isPaused = !isPaused;
@@ -774,10 +1169,11 @@
             if (isPaused) {
                 icon.setAttribute('data-lucide', 'play');
                 document.getElementById('pause-overlay').classList.remove('hidden');
+                apply3DTilt(0,0); // flatten board when paused
             } else {
                 icon.setAttribute('data-lucide', 'pause');
                 document.getElementById('pause-overlay').classList.add('hidden');
-                lastRenderTime = performance.now(); // Reset delta so snake doesn't jump ahead
+                lastRenderTime = performance.now(); 
             }
             lucide.createIcons();
         });
@@ -787,8 +1183,8 @@
             isGameRunning = false;
             isGameOver = true;
             isPaused = false;
+            apply3DTilt(0,0); 
             
-            // Reset to Menu
             document.getElementById('pause-overlay').classList.add('hidden');
             document.getElementById('in-game-controls').classList.add('hidden');
             document.getElementById('overlay-title').innerText = "NEON SERPENT";
@@ -827,7 +1223,7 @@
             const msgEl = document.getElementById('ai-message');
             msgEl.innerText = "AI is judging your performance... ✨";
             const payload = {
-                contents: [{ parts: [{ text: `Player got Game Over scoring ${finalScore}. Give a short 1 sentence funny/snarky reaction.` }] }],
+                contents: [{ parts: [{ text: `Player got Game Over scoring ${finalScore} in ${currentGameMode} mode. Give a short 1 sentence funny/snarky reaction.` }] }],
                 systemInstruction: { parts: [{ text: "You are a snarky video game announcer." }] }
             };
             try {
@@ -860,7 +1256,7 @@
             descEl.innerText = "";
 
             const payload = {
-                contents: [{ parts: [{ text: `The player just scored ${finalScore} points using a ${currentThemeName} theme in Snake. Invent a funny, unique achievement for this specific run.` }] }],
+                contents: [{ parts: [{ text: `The player just scored ${finalScore} points in ${currentGameMode} Mode using a ${currentThemeName} theme. Invent a funny, unique achievement for this specific run.` }] }],
                 systemInstruction: { parts: [{ text: "Respond ONLY in valid JSON with keys: title (max 4 words), description (1 short funny sentence)." }] },
                 generationConfig: { responseMimeType: "application/json" }
             };
@@ -899,7 +1295,7 @@
             taleBtn.classList.add('opacity-50');
 
             const payload = {
-                contents: [{ parts: [{ text: `The player '${playerName}' just died in Snake playing the '${currentThemeName}' theme. They reached a score of ${score}. Write a very short (2 sentences max), overly dramatic, epic fantasy tale about this neon serpent's heroic but ultimately doomed journey.` }] }],
+                contents: [{ parts: [{ text: `The player '${playerName}' just died in Snake playing ${currentGameMode} Mode with the '${currentThemeName}' theme. They reached a score of ${score}. Write a very short (2 sentences max), overly dramatic, epic fantasy tale about this neon serpent's heroic but doomed journey.` }] }],
                 systemInstruction: { parts: [{ text: "You are a dramatic medieval bard. Do not use markdown." }] }
             };
 
@@ -913,7 +1309,7 @@
             } catch (err) {
                 taleBox.innerText = "Alas, the ancient scrolls were lost to the void... (Offline/Error)";
             } finally {
-                taleBtn.classList.add('hidden'); // Hide the button after generating to keep UI clean
+                taleBtn.classList.add('hidden'); 
                 taleBtn.disabled = false;
                 taleBtn.classList.remove('opacity-50');
             }
@@ -933,7 +1329,7 @@
             });
         });
 
-        // --- NEW: Retro Audio / SFX Engine ---
+        // --- Retro Audio / SFX Engine ---
         function initAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -990,9 +1386,8 @@
             lucide.createIcons();
         });
 
-        // --- NEW: PWA Offline Support (Manifest & Service Worker) ---
+        // --- PWA Offline Support (Manifest & Service Worker) ---
         (function initPWA() {
-            // 1. Generate Manifest Inline
             const manifest = {
                 "name": "Neon Serpent",
                 "short_name": "Serpent",
@@ -1009,7 +1404,6 @@
             const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
             document.getElementById('manifest-link').href = URL.createObjectURL(manifestBlob);
 
-            // 2. Generate and Register Service Worker Inline
             if ('serviceWorker' in navigator) {
                 const swCode = `
                     const CACHE_NAME = 'neon-serpent-v1';
