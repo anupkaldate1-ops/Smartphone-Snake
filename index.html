@@ -12,7 +12,18 @@
     <!-- PWA Manifest Link -->
     <link rel="manifest" id="manifest-link">
 
-    <title>Neon Serpent</title>
+    <title>Hyper Serpent</title>
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-EJF3Z8JE7Q"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-EJF3Z8JE7Q');
+    </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -65,6 +76,11 @@
             transition: width 0.1s linear, background-color 0.3s ease;
         }
 
+        /* NEW: Logo Glow */
+        .logo-glow {
+            filter: drop-shadow(0 0 10px rgba(34, 197, 94, 0.8));
+        }
+
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.5); border-radius: 10px; }
@@ -74,7 +90,7 @@
 
     <!-- Header / Scoreboard & Combo System -->
     <header class="w-full flex justify-between items-center p-4 md:p-6 h-[12%] min-h-[70px] relative">
-        <div class="flex flex-col relative">
+        <div class="flex flex-col relative z-20">
             <span class="text-gray-400 text-xs md:text-sm font-bold uppercase tracking-wider">Score</span>
             <div class="flex items-baseline gap-2">
                 <span id="scoreDisplay" class="text-3xl md:text-4xl font-black text-green-400 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]">0</span>
@@ -102,10 +118,17 @@
             <button id="btn-sound" class="text-gray-400 hover:text-white transition-colors z-20">
                 <i data-lucide="volume-2" id="icon-sound" class="w-5 h-5 md:w-6 md:h-6"></i>
             </button>
-            <div class="flex flex-col items-end">
+            <div class="flex flex-col items-end z-20">
                 <span class="text-gray-400 text-xs md:text-sm font-bold uppercase tracking-wider">Best Session</span>
                 <span id="highScoreDisplay" class="text-2xl md:text-3xl font-bold text-gray-200">0</span>
             </div>
+        </div>
+
+        <!-- NEW: Top Center Logo -->
+        <div class="absolute left-1/2 top-4 transform -translate-x-1/2 flex items-center justify-center gap-2 opacity-30 pointer-events-none z-0 hidden md:flex">
+            <!-- UPDATED: Emoji Logo -->
+            <span class="text-2xl md:text-3xl logo-glow">🐍</span>
+            <span class="text-xl font-black italic tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">HYPER SERPENT</span>
         </div>
     </header>
 
@@ -121,10 +144,14 @@
             </div>
 
             <!-- Start/Game Over Overlay -->
-            <div id="overlay" class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm flex flex-col items-center justify-start z-10 w-full h-full overflow-y-auto py-6">
+            <div id="overlay" class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm flex flex-col items-center justify-start z-10 w-full h-full overflow-y-auto py-4">
                 <div class="flex flex-col items-center justify-center w-full px-4 max-w-sm mx-auto">
-                    
-                    <h2 id="overlay-title" class="text-3xl md:text-4xl font-black mb-1 text-white tracking-widest text-center mt-2">NEON SERPENT</h2>
+
+                    <!-- UPDATED: Emoji Logo for Main Menu -->
+                    <div class="flex items-center justify-center gap-2 mt-2 mb-1">
+                        <span class="text-4xl md:text-5xl logo-glow">🐍</span>
+                        <h2 id="overlay-title" class="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 tracking-widest text-center">HYPER SERPENT</h2>
+                    </div>
                     <p id="overlay-subtitle" class="text-gray-400 mb-2 text-center text-xs md:text-sm px-4">Swipe or use D-pad to move</p>
                     
                     <!-- AI Game Over Message -->
@@ -195,6 +222,11 @@
                             <option value="Candy">Candy Land</option>
                             <option value="Halloween">Halloween</option>
                         </select>
+                    </div>
+
+                    <!-- NEW: Logged In Welcome Status (Hidden by default) -->
+                    <div id="welcome-back-box" class="w-full bg-green-900/20 p-3 rounded-xl border border-green-500/30 text-center hidden mb-4 shadow-[0_0_10px_rgba(34,197,94,0.1)]">
+                        <p class="text-xs md:text-sm text-green-400 font-bold">Welcome back, <span id="display-player-name" class="text-white drop-shadow-md">Player</span>! 🐍</p>
                     </div>
 
                     <!-- Login Promo -->
@@ -321,6 +353,11 @@
                                 dbHighScore = docSnap.data().score || 0;
                                 highScore = Math.max(highScore, dbHighScore);
                                 document.getElementById('highScoreDisplay').innerText = highScore;
+                                
+                                // NEW: Show Welcome Back UI immediately if returning player
+                                document.getElementById('display-player-name').innerText = playerName;
+                                document.getElementById('welcome-back-box').classList.remove('hidden');
+                                
                                 unlockPremiumFeatures();
                             }
                         } catch (e) {
@@ -632,14 +669,18 @@
             if (headY < 0) headY = tileCount - 1;
             if (headY >= tileCount) headY = 0;
 
-            // GAME MODE: Avalanche (Meteor Dodge)
+            // GAME MODE: Avalanche (Meteor Dodge) - NERFED & BALANCED
             if (currentGameMode === 'Avalanche' && isGameRunning) {
-                if (Math.random() < 0.06 + (score * 0.002)) {
+                // Strict cap on meteors based on score so it doesn't get impossible
+                const maxMeteors = Math.min(2 + Math.floor(score / 15), 6); 
+                
+                // Drastically reduced spawn chance
+                if (meteors.length < maxMeteors && Math.random() < 0.015 + (score * 0.0002)) {
                     meteors.push({
                         x: Math.random() * tileCount, 
                         y: -2, 
-                        vy: Math.random() * 0.2 + 0.15,
-                        size: Math.random() * 0.6 + 0.3
+                        vy: Math.random() * 0.1 + 0.1, // Much slower fall speed
+                        size: Math.random() * 0.4 + 0.2  // Smaller, fairer hitboxes
                     });
                 }
                 meteors.forEach(m => m.y += m.vy);
@@ -1250,6 +1291,7 @@
 
             document.getElementById('overlay-title').innerText = "GAME OVER";
             document.getElementById('startBtn').innerText = "PLAY AGAIN";
+
             document.getElementById('overlay').classList.remove('hidden');
             document.getElementById('btn-epic-tale').classList.remove('hidden');
             
@@ -1308,9 +1350,18 @@
             
             await saveScoreToCloud(highScore);
             
+            // NEW: Set Welcome UI on successful first login
+            document.getElementById('display-player-name').innerText = playerName;
+            document.getElementById('welcome-back-box').classList.remove('hidden');
+
             unlockPremiumFeatures();
             closeLoginModal();
             btn.innerText = "Save Profile & Continue";
+            
+            // Optional Analytics Ping: Track that a user registered
+            if(typeof gtag === 'function') {
+                gtag('event', 'sign_up', { method: 'anonymous_username' });
+            }
         });
 
         // --- Theme Selection ---
@@ -1356,7 +1407,7 @@
             
             document.getElementById('pause-overlay').classList.add('hidden');
             document.getElementById('in-game-controls').classList.add('hidden');
-            document.getElementById('overlay-title').innerText = "NEON SERPENT";
+            document.getElementById('overlay-title').innerText = "HYPER SERPENT";
             document.getElementById('startBtn').innerText = "PLAY NOW";
             document.getElementById('ai-achievement-box').classList.add('hidden');
             document.getElementById('btn-epic-tale').classList.add('hidden');
@@ -1558,7 +1609,7 @@
         // --- PWA Offline Support (Manifest & Service Worker) ---
         (function initPWA() {
             const manifest = {
-                "name": "Neon Serpent",
+                "name": "Hyper Serpent",
                 "short_name": "Serpent",
                 "start_url": ".",
                 "display": "standalone",
