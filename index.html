@@ -13,14 +13,18 @@
 
     <title>Hyper Serpent</title>
 
-    <!-- Google Analytics (Replace G-XXXXXXXXXX with your ID) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-EJF3Z8JE7Q"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-XXXXXXXXXX');
+      gtag('config', 'G-EJF3Z8JE7Q');
     </script>
+
+    <!-- Google AdSense Script -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX"
+     crossorigin="anonymous"></script>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -67,6 +71,22 @@
             background-color: rgba(234, 179, 8, 0.6);
             border-color: rgba(234, 179, 8, 0.9);
             box-shadow: 0 0 15px rgba(234, 179, 8, 0.6);
+        }
+
+        .ad-container {
+            width: 100%;
+            max-width: 320px;
+            height: 50px;
+            background: rgba(31, 41, 55, 0.4);
+            border: 1px dashed rgba(75, 85, 99, 0.5);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #4b5563;
+            margin-bottom: 12px;
+            overflow: hidden;
         }
 
         #combo-bar-fill {
@@ -119,6 +139,7 @@
             </button>
         </div>
 
+        <!-- Classic Snake Emoji Logo -->
         <div class="absolute left-1/2 top-4 transform -translate-x-1/2 flex items-center justify-center gap-2 opacity-30 pointer-events-none z-0 hidden md:flex">
             <span class="text-2xl md:text-3xl logo-glow">🐍</span>
             <span class="text-xl font-black italic tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">HYPER SERPENT</span>
@@ -301,7 +322,7 @@
 
         let currentThemeName = "Neon Retro", currentTheme = themeLibrary["Neon Retro"], foodSymbols = themeLibrary["Neon Retro"].foodEmojis, currentFoodSymbol = '🍎';
 
-        // LOCAL STORAGE ENGINE: This saves data instantly to the browser even if Firebase isn't set up!
+        // LOCAL STORAGE ENGINE
         function loadLocalData() {
             try {
                 const data = JSON.parse(localStorage.getItem('hyperSerpent_data'));
@@ -310,6 +331,14 @@
                     dbHighScore = highScore;
                     neonCoins = data.coins || 0;
                     unlockedThemes = data.themes || ["Neon Retro"];
+                    
+                    // Restore currently equipped theme from offline save
+                    if (data.equippedTheme && themeLibrary[data.equippedTheme]) {
+                        currentThemeName = data.equippedTheme;
+                        currentTheme = themeLibrary[currentThemeName];
+                        foodSymbols = currentTheme.foodEmojis;
+                        currentFoodSymbol = foodSymbols[0];
+                    }
                 }
             } catch(e) {}
         }
@@ -322,12 +351,13 @@
             if(scd) scd.innerText = neonCoins;
         }
 
-        // This unified function saves locally AND pushes to Firebase (if connected)
+        // Save locally AND push to Firebase securely
         function saveData() {
             localStorage.setItem('hyperSerpent_data', JSON.stringify({
                 highScore: Math.max(highScore, dbHighScore),
                 coins: neonCoins,
-                themes: unlockedThemes
+                themes: unlockedThemes,
+                equippedTheme: currentThemeName
             }));
             
             if (currentUser && hasProfile && db) {
@@ -336,12 +366,13 @@
                     name: playerName, 
                     score: dbHighScore,
                     coins: neonCoins,
-                    themes: unlockedThemes
+                    themes: unlockedThemes,
+                    equippedTheme: currentThemeName
                 }, { merge: true }).catch(e => console.warn("Cloud save offline."));
             }
         }
 
-        const initFirebase = async () => {
+        const initFirebaseSetup = async () => {
             if (!firebaseConfig) return;
             const app = initializeApp(firebaseConfig);
             auth = getAuth(app);
@@ -364,12 +395,24 @@
                         const data = docSnap.data();
                         playerName = data.name;
                         
+                        // Merge Online and Offline Progress gracefully
                         dbHighScore = data.score || 0;
                         highScore = Math.max(highScore, dbHighScore);
                         neonCoins = Math.max(neonCoins, data.coins || 0);
                         
                         const cloudThemes = data.themes || [];
                         cloudThemes.forEach(t => { if(!unlockedThemes.includes(t)) unlockedThemes.push(t); });
+                        
+                        // Restore cloud equipped theme if exists
+                        if (data.equippedTheme && themeLibrary[data.equippedTheme]) {
+                            currentThemeName = data.equippedTheme;
+                            currentTheme = themeLibrary[currentThemeName];
+                            foodSymbols = currentTheme.foodEmojis;
+                            currentFoodSymbol = foodSymbols[0];
+                            initParticles(currentThemeName);
+                            const gc = document.getElementById('game-container');
+                            if(gc) gc.style.boxShadow = `0 0 25px ${currentTheme.snakeHead}33`; 
+                        }
                         
                         saveData(); 
                         
@@ -461,7 +504,7 @@
 
         // GEMINI AI INTEGRATION
         async function fetchGemini(payload, retries = 5) {
-            const apiKey = ""; // Leave blank for Canvas execution magic
+            const apiKey = ""; 
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
             const delays = [1000, 2000, 4000, 8000, 16000];
 
@@ -623,10 +666,12 @@
                         speedOffset -= 5;
                         floatingTexts.push({x: headX, y: headY, text: "SPEED REDUCED!", color: "#93c5fd", life: 40});
                     } else { 
-                        score += 5; 
+                        let earnedP = 5 * comboMultiplier; // Combo multiplier applies to tail cut too!
+                        score += earnedP; 
+                        neonCoins += earnedP; updateCoinUI(); saveData();
                         const sd = document.getElementById('scoreDisplay'); if(sd) sd.innerText = score; 
                         tailLength = Math.max(2, Math.floor(tailLength/2)); 
-                        floatingTexts.push({x: headX, y: headY, text: "TAIL CUT! +5", color: "#facc15", life: 40});
+                        floatingTexts.push({x: headX, y: headY, text: `TAIL CUT! +${earnedP}`, color: "#facc15", life: 40});
                     }
                     powerUp = null; playSound('powerup');
                 }
@@ -743,18 +788,15 @@
             if (d==='up'&&l!=='down') inputQueue.push('up'); if (d==='down'&&l!=='up') inputQueue.push('down'); if (d==='left'&&l!=='right') inputQueue.push('left'); if (d==='right'&&l!=='left') inputQueue.push('right');
         }
 
-        // SAFETY FIX: Only attempt to register Service Worker on valid HTTP/HTTPS protocols
-        if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.protocol === 'http:')) {
-            window.addEventListener('load', () => {
-                try {
-                    navigator.serviceWorker.register('sw.js')
-                    .then(r => console.log('Service Worker registered.'))
-                    .catch(e => console.log('Service Worker registration failed:', e));
-                } catch(err) {
-                    console.log('Service Worker skipped for local/blob testing.');
-                }
-            });
+        // SAFETY FIX: Ensure Service Worker always registers properly regardless of script load timing
+        function registerSW() {
+            if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.protocol === 'http:')) {
+                navigator.serviceWorker.register('sw.js')
+                .then(r => console.log('Service Worker registered.'))
+                .catch(e => console.log('Service Worker registration failed:', e));
+            }
         }
+        if (document.readyState === 'complete') { registerSW(); } else { window.addEventListener('load', registerSW); }
 
         function startGame() {
             requestGyroPermission(); initAudio(); headX=Math.floor(tileCount/2); headY=Math.floor(tileCount/2); snakeParts=[{x:headX,y:headY}]; tailLength=2; appleX=15; appleY=10; xVelocity=0; yVelocity=0; inputQueue=['right']; score=0; 
@@ -826,7 +868,6 @@
             } catch (err) { if(te) te.innerText = "Nice Run!"; if(de) de.innerText = "You tried."; } 
         }
 
-        // INIT SETUP FUNCTION TO PREVENT NULL DOM ERRORS
         function initGameUI() {
             lucide.createIcons();
             
@@ -835,32 +876,53 @@
             
             updateCoinUI();
             
+            // Re-apply any equipped theme loaded safely from local storage
+            const gc = document.getElementById('game-container');
+            if(gc) gc.style.boxShadow = `0 0 25px ${currentTheme.snakeHead}33`; 
+            
             const bindClick = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
             
-            // Start button
             bindClick('startBtn', startGame);
             
-            // Mode and theme bindings
             const md = document.getElementById('mode-dropdown');
             if(md) md.addEventListener('change', e => currentGameMode = e.target.value);
-            
-            const td = document.getElementById('theme-dropdown');
-            if(td) td.addEventListener('change', e => { 
-                currentThemeName=e.target.value; currentTheme=themeLibrary[currentThemeName]; foodSymbols=currentTheme.foodEmojis; currentFoodSymbol=foodSymbols[0]; initParticles(currentThemeName); drawGame(); 
+
+            // Shop Bindings
+            bindClick('btn-open-shop', () => { 
+                renderShop(); 
+                const mmv = document.getElementById('main-menu-view');
+                const sv = document.getElementById('shop-view');
+                if (mmv) mmv.classList.add('hidden'); 
+                if (sv) sv.classList.remove('hidden'); 
+            });
+            bindClick('btn-close-shop', () => { 
+                const mmv = document.getElementById('main-menu-view');
+                const sv = document.getElementById('shop-view');
+                if (sv) sv.classList.add('hidden'); 
+                if (mmv) mmv.classList.remove('hidden'); 
             });
 
             // Login & Premium features
-            bindClick('btn-show-login', () => document.getElementById('login-modal').classList.remove('hidden'));
-            bindClick('btn-close-login', () => document.getElementById('login-modal').classList.add('hidden'));
+            bindClick('btn-show-login', () => {
+                const lm = document.getElementById('login-modal');
+                if (lm) lm.classList.remove('hidden');
+            });
+            bindClick('btn-close-login', () => {
+                const lm = document.getElementById('login-modal');
+                if (lm) lm.classList.add('hidden');
+            });
             bindClick('btn-submit-login', async () => { 
                 const nm = document.getElementById('login-name');
                 if(!nm) return;
                 let n = nm.value.trim(); 
                 if(!n) return; 
                 playerName=n; hasProfile=true; saveData(); unlockPremiumFeatures(); 
-                document.getElementById('login-modal').classList.add('hidden'); 
-                document.getElementById('welcome-back-box').classList.remove('hidden'); 
-                document.getElementById('display-player-name').innerText=n; 
+                const lm = document.getElementById('login-modal');
+                if (lm) lm.classList.add('hidden'); 
+                const wbb = document.getElementById('welcome-back-box');
+                if (wbb) wbb.classList.remove('hidden'); 
+                const dpn = document.getElementById('display-player-name');
+                if (dpn) dpn.innerText=n; 
             });
 
             // Sound and Control buttons
@@ -871,16 +933,20 @@
             });
             bindClick('btn-home', () => { 
                 isGameRunning=false; isGameOver=true; 
-                document.getElementById('overlay-title').innerText="HYPER SERPENT"; 
-                document.getElementById('overlay').classList.remove('hidden'); 
-                document.getElementById('in-game-controls').classList.add('hidden'); 
+                const ot = document.getElementById('overlay-title');
+                if(ot) ot.innerText="HYPER SERPENT"; 
+                const ov = document.getElementById('overlay');
+                if(ov) ov.classList.remove('hidden'); 
+                const igc = document.getElementById('in-game-controls');
+                if(igc) igc.classList.add('hidden'); 
                 renderShop(); 
             });
             bindClick('btn-pause', () => { 
                 isPaused=!isPaused; 
                 const ip = document.getElementById('icon-pause');
                 if(ip) ip.setAttribute('data-lucide', isPaused?'play':'pause'); 
-                document.getElementById('pause-overlay').classList.toggle('hidden'); 
+                const po = document.getElementById('pause-overlay');
+                if(po) po.classList.toggle('hidden'); 
                 lucide.createIcons(); 
             });
 
@@ -927,7 +993,6 @@
                 }
             });
 
-            // Keyboard/D-pad mappings
             const keyMap = {
                 'ArrowUp': 'up', 'w': 'up', 'W': 'up',
                 'ArrowDown': 'down', 's': 'down', 'S': 'down',
@@ -960,19 +1025,29 @@
                 }
             });
             
+            // SAFETY FIX: Added mouseleave and touchcancel to prevent infinite dash sticking
             const bd=document.getElementById('btn-dash'); 
             if(bd) {
-                bd.ontouchstart=e=>{e.preventDefault();isDashing=true;bd.classList.add('active-dash');}; 
-                bd.ontouchend=e=>{e.preventDefault();isDashing=false;bd.classList.remove('active-dash');};
+                const startDash = e => { e.preventDefault(); isDashing=true; bd.classList.add('active-dash'); };
+                const stopDash = e => { e.preventDefault(); isDashing=false; bd.classList.remove('active-dash'); };
+                
+                bd.addEventListener('touchstart', startDash, {passive: false});
+                bd.addEventListener('touchend', stopDash, {passive: false});
+                bd.addEventListener('touchcancel', stopDash, {passive: false});
+                bd.addEventListener('mousedown', startDash);
+                bd.addEventListener('mouseup', stopDash);
+                bd.addEventListener('mouseleave', stopDash);
             }
 
             setTimeout(resizeCanvas, 50);
+            
+            initFirebaseSetup();
         }
 
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initGameUI);
         } else {
-            setTimeout(initGameUI, 50); // Small timeout allows dynamic DOM nodes to attach completely
+            setTimeout(initGameUI, 50); 
         }
 
     </script>
